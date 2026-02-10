@@ -1,63 +1,110 @@
 <!DOCTYPE html>
 <html lang="es">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Pendientes Armonización</title>
-        <!-- DataTables + jQuery -->
-  <link rel="stylesheet"
-        href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pendientes de Armonización</title>
+
+  <!-- DataTables + jQuery -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
+  />
 
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
   <!-- CSV parser -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+    }
+    #actualizacion {
+      font-style: italic;
+      color: #555;
+      margin-bottom: 15px;
+    }
+  </style>
 </head>
 
 <body>
-  <h2>Consulta pública</h2>
+
+  <h2>Pendientes de Armonización Legislativa</h2>
+
+  <p id="actualizacion">Cargando última actualización…</p>
+
   <table id="tabla" class="display" style="width:100%"></table>
 
-<script>
-Papa.parse("datos.csv", {
-  download: true,
-  header: true,
-  skipEmptyLines: true,
-  complete: function(results) {
-
-    // Limpiar encabezados (quitar BOM, espacios y caracteres raros)
-    const datosLimpios = results.data
-      .filter(row => Object.values(row).some(v => v && v.trim() !== ""))
-      .map(row => {
-        const nuevo = {};
-        Object.keys(row).forEach(key => {
-          const keyLimpia = key.replace(/^\uFEFF/, "").trim();
-          nuevo[keyLimpia] = row[key];
-        });
-        return nuevo;
+  <!-- Última actualización automática (fecha real del CSV) -->
+  <script>
+    fetch("datos.csv", { method: "HEAD" })
+      .then(response => {
+        const lastModified = response.headers.get("Last-Modified");
+        if (lastModified) {
+          const fecha = new Date(lastModified);
+          const opciones = {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+          };
+          document.getElementById("actualizacion").textContent =
+            "Última actualización: " +
+            fecha.toLocaleDateString("es-MX", opciones);
+        } else {
+          document.getElementById("actualizacion").textContent =
+            "Última actualización: no disponible";
+        }
+      })
+      .catch(() => {
+        document.getElementById("actualizacion").textContent =
+          "Última actualización: no disponible";
       });
+  </script>
 
-    const columnas = Object.keys(datosLimpios[0]).map(col => ({
-      title: col,
-      data: col
-    }));
+  <!-- Tabla -->
+  <script>
+    Papa.parse("datos.csv", {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: function (results) {
 
-    $('#tabla').DataTable({
-      data: datosLimpios,
-      columns: columnas,
-      paging: true,
-      searching: true,
-      ordering: true,
-      destroy: true,
-      language: {
-        url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
+        // Limpiar filas y encabezados
+        const datosLimpios = results.data
+          .filter(row =>
+            row["No"] && row["No"].toString().trim() !== ""
+          )
+          .map(row => {
+            const limpio = {};
+            Object.keys(row).forEach(key => {
+              const keyLimpia = key.replace(/^\uFEFF/, "").trim();
+              limpio[keyLimpia] = row[key];
+            });
+            return limpio;
+          });
+
+        const columnas = Object.keys(datosLimpios[0]).map(col => ({
+          title: col,
+          data: col
+        }));
+
+        $('#tabla').DataTable({
+          data: datosLimpios,
+          columns: columnas,
+          paging: true,
+          searching: true,
+          ordering: true,
+          destroy: true,
+          language: {
+            url:
+              "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
+          }
+        });
       }
     });
-  }
-});
-</script>
-    </body>
+  </script>
+
+</body>
 </html>
-
-
-
