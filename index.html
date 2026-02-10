@@ -2,13 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Pendientes de Armonización</title>
+  <title>Pendientes de Armonización Legislativa</title>
 
   <!-- DataTables + jQuery -->
-  <link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
-  />
+  <link rel="stylesheet"
+        href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -21,10 +19,16 @@
       font-family: Arial, sans-serif;
       margin: 30px;
     }
+
     #actualizacion {
       font-style: italic;
       color: #555;
       margin-bottom: 15px;
+    }
+
+    table.dataTable a {
+      color: #0645ad;
+      text-decoration: underline;
     }
   </style>
 </head>
@@ -32,26 +36,24 @@
 <body>
 
   <h2>Pendientes de Armonización Legislativa</h2>
-
   <p id="actualizacion">Cargando última actualización…</p>
 
   <table id="tabla" class="display" style="width:100%"></table>
 
-  <!-- Última actualización automática (fecha real del CSV) -->
+  <!-- Última actualización automática -->
   <script>
     fetch("datos.csv", { cache: "no-store" })
       .then(response => {
         const lastModified = response.headers.get("Last-Modified");
         if (lastModified) {
           const fecha = new Date(lastModified);
-          const opciones = {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-          };
           document.getElementById("actualizacion").textContent =
             "Última actualización: " +
-            fecha.toLocaleDateString("es-MX", opciones);
+            fecha.toLocaleDateString("es-MX", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric"
+            });
         } else {
           document.getElementById("actualizacion").textContent =
             "Última actualización: no disponible";
@@ -71,11 +73,8 @@
       skipEmptyLines: true,
       complete: function (results) {
 
-        // Limpiar filas y encabezados
         const datosLimpios = results.data
-          .filter(row =>
-            row["No"] && row["No"].toString().trim() !== ""
-          )
+          .filter(row => row["No"] && row["No"].toString().trim() !== "")
           .map(row => {
             const limpio = {};
             Object.keys(row).forEach(key => {
@@ -85,10 +84,40 @@
             return limpio;
           });
 
-        const columnas = Object.keys(datosLimpios[0]).map(col => ({
-          title: col,
-          data: col
-        }));
+        const columnas = Object.keys(datosLimpios[0]).map(col => {
+
+          // ORDENAMIENTO como link usando ENLACE
+          if (col === "ORDENAMIENTO") {
+            return {
+              title: col,
+              data: col,
+              render: function (data, type, row) {
+                if (row.ENLACE && row.ENLACE.trim() !== "") {
+                  return `<a href="${row.ENLACE}"
+                             target="_blank"
+                             rel="noopener noreferrer">
+                             ${data}
+                          </a>`;
+                }
+                return data;
+              }
+            };
+          }
+
+          // Ocultar columna ENLACE
+          if (col === "ENLACE") {
+            return {
+              title: col,
+              data: col,
+              visible: false
+            };
+          }
+
+          return {
+            title: col,
+            data: col
+          };
+        });
 
         $('#tabla').DataTable({
           data: datosLimpios,
@@ -98,8 +127,7 @@
           ordering: true,
           destroy: true,
           language: {
-            url:
-              "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
+            url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
           }
         });
       }
@@ -108,4 +136,5 @@
 
 </body>
 </html>
+
 
