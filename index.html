@@ -29,6 +29,7 @@
     table.dataTable a {
       color: #0645ad;
       text-decoration: underline;
+      font-weight: 500;
     }
   </style>
 </head>
@@ -79,27 +80,32 @@
             const limpio = {};
             Object.keys(row).forEach(key => {
               const keyLimpia = key.replace(/^\uFEFF/, "").trim();
-              limpio[keyLimpia] = row[key];
+              limpio[keyLimpia] =
+                typeof row[key] === "string"
+                  ? row[key].trim()
+                  : row[key];
             });
             return limpio;
           });
 
         const columnas = Object.keys(datosLimpios[0]).map(col => {
 
-          // ORDENAMIENTO como link usando ENLACE
+          // ORDENAMIENTO como link al ENLACE
           if (col === "ORDENAMIENTO") {
             return {
               title: col,
               data: col,
               render: function (data, type, row) {
-                if (row.ENLACE && row.ENLACE.trim() !== "") {
-                  return `<a href="${row.ENLACE}"
+                const texto = data || "";
+                const enlace = row["ENLACE"] || "";
+                if (enlace !== "") {
+                  return `<a href="${enlace}"
                              target="_blank"
                              rel="noopener noreferrer">
-                             ${data}
+                             ${texto}
                           </a>`;
                 }
-                return data;
+                return texto;
               }
             };
           }
@@ -127,7 +133,8 @@
           ordering: true,
           destroy: true,
           language: {
-            url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
+            url:
+              "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
           }
         });
       }
@@ -136,5 +143,3 @@
 
 </body>
 </html>
-
-
