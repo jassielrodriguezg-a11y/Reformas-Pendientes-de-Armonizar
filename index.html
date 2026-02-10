@@ -23,13 +23,19 @@ Papa.parse("datos.csv", {
   download: true,
   header: true,
   complete: function(results) {
-    let columnas = Object.keys(results.data[0]).map(col => ({
+
+    // Eliminar filas vacías
+    const datosLimpios = results.data.filter(row =>
+      Object.values(row).some(value => value && value.trim() !== "")
+    );
+
+    let columnas = Object.keys(datosLimpios[0]).map(col => ({
       title: col,
       data: col
     }));
 
     $('#tabla').DataTable({
-      data: results.data,
+      data: datosLimpios,
       columns: columnas,
       paging: true,
       searching: true,
@@ -43,3 +49,5 @@ Papa.parse("datos.csv", {
 </script>
     </body>
 </html>
+
+
