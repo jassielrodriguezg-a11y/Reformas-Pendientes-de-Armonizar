@@ -39,7 +39,7 @@
 
   <!-- Última actualización automática (fecha real del CSV) -->
   <script>
-    fetch("datos.csv", { method: "HEAD" })
+    fetch("datos.csv", { cache: "no-store" })
       .then(response => {
         const lastModified = response.headers.get("Last-Modified");
         if (lastModified) {
@@ -108,3 +108,4 @@
 
 </body>
 </html>
+
