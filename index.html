@@ -1,152 +1,157 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Pendientes de Armonización Legislativa</title>
-  <link rel="icon" href="favicon.png" type="image/png">
+<meta charset="UTF-8">
+<title>Reformas Pendientes de Armonizar</title>
 
-  <!-- DataTables + jQuery -->
-  <link rel="stylesheet"
-        href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<!-- Favicon -->
+<link rel="icon" href="favicon.png" type="image/png">
 
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 
-  <!-- CSV parser -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 30px;
-    }
+<!-- DataTables -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
-    #actualizacion {
-      font-style: italic;
-      color: #555;
-      margin-bottom: 15px;
-    }
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+}
 
-    table.dataTable a {
-      color: #0645ad;
-      text-decoration: underline;
-      font-weight: 500;
-    }
-  </style>
-  
+h2 {
+    margin-bottom: 5px;
+}
+
+#ultima-actualizacion {
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+table {
+    width: 100%;
+}
+</style>
 </head>
 
 <body>
 
-  <h2>Pendientes de Armonización Legislativa</h2>
-  <p id="actualizacion">Cargando última actualización…</p>
+<h2>Reformas Pendientes de Armonizar</h2>
+<div id="ultima-actualizacion"></div>
 
-  <table id="tabla" class="display" style="width:100%"></table>
+<table id="tabla" class="display">
+    <thead>
+        <tr>
+            <th>No</th>
+            <th>ORDENAMIENTO</th>
+            <th>MATERIA REFORMA</th>
+            <th>PUBLICACIÓN DOF</th>
+            <th>PLAZO PARA ARMONIZAR</th>
+            <th>FECHA LÍMITE</th>
+            <th>VENCIMIENTO</th>
+            <th>HECHO</th>
+            <th>ENLACE</th>
+        </tr>
+    </thead>
+</table>
 
-  <!-- Última actualización automática -->
-  <script>
-    fetch("datos.csv", { cache: "no-store" })
-      .then(response => {
-        const lastModified = response.headers.get("Last-Modified");
-        if (lastModified) {
-          const fecha = new Date(lastModified);
-          document.getElementById("actualizacion").textContent =
-            "Última actualización: " +
-            fecha.toLocaleDateString("es-MX", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric"
-            });
-        } else {
-          document.getElementById("actualizacion").textContent =
-            "Última actualización: no disponible";
-        }
-      })
-      .catch(() => {
-        document.getElementById("actualizacion").textContent =
-          "Última actualización: no disponible";
-      });
-  </script>
+<script>
 
-  <!-- Tabla -->
-  <script>
-    Papa.parse("datos.csv", {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function (results) {
+// Función para calcular vencimiento automáticamente
+function calcularVencimiento(fechaLimiteStr) {
 
-        const datosLimpios = results.data
-          .filter(row => row["No"] && row["No"].toString().trim() !== "")
-          .map(row => {
-            const limpio = {};
-            Object.keys(row).forEach(key => {
-              const keyLimpia = key.replace(/^\uFEFF/, "").trim();
-              limpio[keyLimpia] =
-                typeof row[key] === "string"
-                  ? row[key].trim()
-                  : row[key];
-            });
-            return limpio;
-          });
+    const partes = fechaLimiteStr.split("/");
+    const fechaLimite = new Date(partes[2], partes[1] - 1, partes[0]);
 
-        const columnas = Object.keys(datosLimpios[0]).map(col => {
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    fechaLimite.setHours(0,0,0,0);
 
-          // ORDENAMIENTO como link al ENLACE
-          if (col === "ORDENAMIENTO") {
-            return {
-              title: col,
-              data: col,
-              render: function (data, type, row) {
-                const texto = data || "";
-                const enlace = row["ENLACE"] || "";
-                if (enlace !== "") {
-                  return `<a href="${enlace}"
-                             target="_blank"
-                             rel="noopener noreferrer">
-                             ${texto}
-                          </a>`;
+    const diferencia = Math.floor((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
+
+    if (diferencia < 0) {
+        return "VENCIDO";
+    } else if (diferencia === 0) {
+        return "VENCE HOY";
+    } else {
+        return "FALTAN " + diferencia + " DÍAS";
+    }
+}
+
+$(document).ready(function() {
+
+    $('#tabla').DataTable({
+        ajax: {
+            url: 'datos.csv',
+            dataSrc: function(data) {
+                const lines = data.split('\n');
+                const headers = lines[0].split(',');
+                const resultado = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim() === "") continue;
+
+                    const valores = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                    const fila = {};
+
+                    headers.forEach((header, index) => {
+                        fila[header.trim()] = valores[index] ? valores[index].replace(/"/g, "") : "";
+                    });
+
+                    resultado.push(fila);
                 }
-                return texto;
-              }
-            };
-          }
 
-          // Ocultar columna ENLACE
-          if (col === "ENLACE") {
-            return {
-              title: col,
-              data: col,
-              visible: false
-            };
-          }
+                return resultado;
+            }
+        },
 
-          return {
-            title: col,
-            data: col
-          };
-        });
+        columns: [
+            { data: "No" },
+            { data: "ORDENAMIENTO" },
+            { data: "MATERIA REFORMA" },
+            { data: "PUBLICACIÓN DOF" },
+            { data: "PLAZO PARA ARMONIZAR" },
+            { data: "FECHA LÍMITE" },
 
-        $('#tabla').DataTable({
-          data: datosLimpios,
-          columns: columnas,
-          paging: true,
-          searching: true,
-          ordering: true,
-          destroy: true,
-          language: {
-            url:
-              "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json"
-          }
-        });
-      }
+            // COLUMNA DINÁMICA VENCIMIENTO
+            {
+                data: "FECHA LÍMITE",
+                render: function(data, type, row) {
+                    return calcularVencimiento(data);
+                }
+            },
+
+            { data: "HECHO" },
+
+            // Convertir ENLACE en botón
+            {
+                data: "ENLACE",
+                render: function(data) {
+                    return '<a href="' + data + '" target="_blank">Ver decreto</a>';
+                }
+            }
+        ],
+
+        language: {
+            url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
+        }
     });
-  </script>
+
+    // Última actualización automática
+    const hoy = new Date();
+    const fechaFormateada = hoy.toLocaleDateString('es-MX', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    document.getElementById("ultima-actualizacion").innerText =
+        "Última actualización: " + fechaFormateada;
+});
+</script>
 
 </body>
 </html>
-
-
-
-
-
