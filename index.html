@@ -64,13 +64,25 @@ table {
 function calcularVencimiento(fechaLimiteStr) {
 
     const partes = fechaLimiteStr.split("/");
-    const fechaLimite = new Date(partes[2], partes[1] - 1, partes[0]);
 
+    // Crear fechas en formato YYYY-MM-DD (evita problema de zona horaria)
+    const fechaLimite = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
     const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    fechaLimite.setHours(0,0,0,0);
 
-    const diferencia = Math.floor((fechaLimite - hoy) / (1000 * 60 * 60 * 24));
+    // Convertir ambas a fecha sin hora usando UTC
+    const fechaUTC = Date.UTC(
+        fechaLimite.getFullYear(),
+        fechaLimite.getMonth(),
+        fechaLimite.getDate()
+    );
+
+    const hoyUTC = Date.UTC(
+        hoy.getFullYear(),
+        hoy.getMonth(),
+        hoy.getDate()
+    );
+
+    const diferencia = Math.round((fechaUTC - hoyUTC) / (1000 * 60 * 60 * 24));
 
     if (diferencia < 0) {
         return "VENCIDO";
@@ -155,3 +167,4 @@ $(document).ready(function() {
 
 </body>
 </html>
+
