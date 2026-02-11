@@ -2,18 +2,13 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Reformas Pendientes de Armonizar</title>
+<title>Pendientes de Armonización Legislativa</title>
 
-<!-- Favicon -->
 <link rel="icon" href="favicon.png" type="image/png">
 
-<!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 
-<!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-
-<!-- DataTables -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
 <style>
@@ -30,59 +25,51 @@ h2 {
     margin-bottom: 20px;
     font-weight: bold;
 }
-
-table {
-    width: 100%;
-}
 </style>
 </head>
 
 <body>
 
-<h2>Reformas Pendientes de Armonizar</h2>
+<h2>Pendientes de Armonización Legislativa</h2>
 <div id="ultima-actualizacion"></div>
 
-<table id="tabla" class="display">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>ORDENAMIENTO</th>
-            <th>MATERIA REFORMA</th>
-            <th>PUBLICACIÓN DOF</th>
-            <th>PLAZO PARA ARMONIZAR</th>
-            <th>FECHA LÍMITE</th>
-            <th>VENCIMIENTO</th>
-            <th>HECHO</th>
-            <th>ENLACE</th>
-        </tr>
-    </thead>
+<table id="tabla" class="display" style="width:100%">
+<thead>
+<tr>
+<th>No</th>
+<th>ORDENAMIENTO</th>
+<th>MATERIA REFORMA</th>
+<th>PUBLICACIÓN DOF</th>
+<th>PLAZO PARA ARMONIZAR</th>
+<th>FECHA LÍMITE</th>
+<th>VENCIMIENTO</th>
+<th>HECHO</th>
+<th>ENLACE</th>
+</tr>
+</thead>
 </table>
 
 <script>
 
-// Función para calcular vencimiento automáticamente
+// Cálculo correcto sin error de zona horaria
 function calcularVencimiento(fechaLimiteStr) {
 
     const partes = fechaLimiteStr.split("/");
 
-    // Crear fechas en formato YYYY-MM-DD (evita problema de zona horaria)
-    const fechaLimite = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`);
-    const hoy = new Date();
-
-    // Convertir ambas a fecha sin hora usando UTC
-    const fechaUTC = Date.UTC(
-        fechaLimite.getFullYear(),
-        fechaLimite.getMonth(),
-        fechaLimite.getDate()
+    const fechaLimiteUTC = Date.UTC(
+        parseInt(partes[2]),
+        parseInt(partes[1]) - 1,
+        parseInt(partes[0])
     );
 
+    const hoy = new Date();
     const hoyUTC = Date.UTC(
         hoy.getFullYear(),
         hoy.getMonth(),
         hoy.getDate()
     );
 
-    const diferencia = Math.round((fechaUTC - hoyUTC) / (1000 * 60 * 60 * 24));
+    const diferencia = Math.round((fechaLimiteUTC - hoyUTC) / (1000 * 60 * 60 * 24));
 
     if (diferencia < 0) {
         return "VENCIDO";
@@ -95,60 +82,61 @@ function calcularVencimiento(fechaLimiteStr) {
 
 $(document).ready(function() {
 
-    $('#tabla').DataTable({
-        ajax: {
-            url: 'datos.csv',
-            dataSrc: function(data) {
-                const lines = data.split('\n');
-                const headers = lines[0].split(',');
-                const resultado = [];
+    $.ajax({
+        url: "datos.csv",
+        dataType: "text",
+        success: function(data) {
 
-                for (let i = 1; i < lines.length; i++) {
-                    if (lines[i].trim() === "") continue;
+            const lineas = data.trim().split("\n");
+            const encabezados = lineas[0].split(",");
+            const datos = [];
 
-                    const valores = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-                    const fila = {};
+            for (let i = 1; i < lineas.length; i++) {
 
-                    headers.forEach((header, index) => {
-                        fila[header.trim()] = valores[index] ? valores[index].replace(/"/g, "") : "";
-                    });
+                if (!lineas[i].trim()) continue;
 
-                    resultado.push(fila);
-                }
+                const fila = lineas[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+                if (!fila) continue;
 
-                return resultado;
+                const objeto = {};
+
+                encabezados.forEach((enc, index) => {
+                    objeto[enc.trim()] = fila[index]
+                        ? fila[index].replace(/"/g, "").trim()
+                        : "";
+                });
+
+                datos.push(objeto);
             }
-        },
 
-        columns: [
-            { data: "No" },
-            { data: "ORDENAMIENTO" },
-            { data: "MATERIA REFORMA" },
-            { data: "PUBLICACIÓN DOF" },
-            { data: "PLAZO PARA ARMONIZAR" },
-            { data: "FECHA LÍMITE" },
-
-            // COLUMNA DINÁMICA VENCIMIENTO
-            {
-                data: "FECHA LÍMITE",
-                render: function(data, type, row) {
-                    return calcularVencimiento(data);
+            $('#tabla').DataTable({
+                data: datos,
+                columns: [
+                    { data: "No" },
+                    { data: "ORDENAMIENTO" },
+                    { data: "MATERIA REFORMA" },
+                    { data: "PUBLICACIÓN DOF" },
+                    { data: "PLAZO PARA ARMONIZAR" },
+                    { data: "FECHA LÍMITE" },
+                    {
+                        data: "FECHA LÍMITE",
+                        render: function(data) {
+                            return calcularVencimiento(data);
+                        }
+                    },
+                    { data: "HECHO" },
+                    {
+                        data: "ENLACE",
+                        render: function(data) {
+                            return '<a href="' + data + '" target="_blank">Ver decreto</a>';
+                        }
+                    }
+                ],
+                language: {
+                    url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
                 }
-            },
+            });
 
-            { data: "HECHO" },
-
-            // Convertir ENLACE en botón
-            {
-                data: "ENLACE",
-                render: function(data) {
-                    return '<a href="' + data + '" target="_blank">Ver decreto</a>';
-                }
-            }
-        ],
-
-        language: {
-            url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
         }
     });
 
@@ -162,9 +150,10 @@ $(document).ready(function() {
 
     document.getElementById("ultima-actualizacion").innerText =
         "Última actualización: " + fechaFormateada;
+
 });
+
 </script>
 
 </body>
 </html>
-
