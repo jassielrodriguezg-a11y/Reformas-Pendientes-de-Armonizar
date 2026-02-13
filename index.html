@@ -83,9 +83,9 @@ function calcularVencimiento(fechaLimiteStr) {
 $(document).ready(function() {
 
     $.ajax({
-        url: "datos.csv",
-        dataType: "text",
-        success: function(data) {
+    url: "datos.csv?v=" + new Date().getTime(),
+    dataType: "text",
+    success: function(data) {
 
             const lineas = data.trim().split("\n");
             const encabezados = lineas[0].split(",");
@@ -157,3 +157,4 @@ $(document).ready(function() {
 
 </body>
 </html>
+
