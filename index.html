@@ -46,6 +46,7 @@ button {
     background: #2980b9;
     color: white;
     cursor: pointer;
+    margin-right: 5px;
 }
 
 button:hover { background: #1f5f8a; }
@@ -75,7 +76,7 @@ button:hover { background: #1f5f8a; }
 <th>VENCIMIENTO</th>
 <th>HECHO</th>
 <th>DECRETO</th>
-<th>INICIATIVA</th>
+<th>INICIATIVA LOCAL</th>
 </tr>
 </thead>
 </table>
@@ -84,6 +85,7 @@ button:hover { background: #1f5f8a; }
 
 <script>
 
+// Calcular vencimiento
 function calcularVencimiento(fechaLimiteStr) {
 
     if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente")) {
@@ -121,16 +123,17 @@ $(document).ready(function() {
 
             const datos = parsed.data;
 
-            // Fecha actualización
+            // Última actualización
             const header = xhr.getResponseHeader("Last-Modified");
             if (header) {
                 const fecha = new Date(header);
                 $("#ultima-actualizacion").text(
-                    "Última actualización: " + fecha.toLocaleDateString('es-MX')
+                    "Última actualización: " +
+                    fecha.toLocaleDateString('es-MX')
                 );
             }
 
-            // Stats
+            // Contador
             let vencidos = 0;
             datos.forEach(d => {
                 if (calcularVencimiento(d["FECHA LÍMITE"]) === "VENCIDO") vencidos++;
@@ -167,9 +170,24 @@ $(document).ready(function() {
                     {
                         data: "HECHO",
                         render: function(data) {
-                            if (data.toLowerCase().includes("iniciativa"))
-                                return '<span style="color:green;">✔</span>';
-                            return '<span style="color:#999;">✖</span>';
+
+                            if (!data) return '';
+
+                            const valor = data.toLowerCase();
+
+                            if (valor.includes("dictamen pendiente")) {
+                                return '<span style="color:orange; font-weight:bold;">Dictamen pendiente</span>';
+                            }
+
+                            if (valor === "no") {
+                                return '<span style="color:#999;">No</span>';
+                            }
+
+                            if (valor === "sí" || valor === "si") {
+                                return '<span style="color:green;">✔ Cumplido</span>';
+                            }
+
+                            return data;
                         }
                     },
                     {
@@ -183,7 +201,7 @@ $(document).ready(function() {
                         render: function(data) {
 
                             if (!data || data.toLowerCase().includes("no hay")) {
-                                return '<span style="color:#999;">No disponible</span>';
+                                return '<span style="color:#999;">No hay</span>';
                             }
 
                             return `<a href="${data}" target="_blank">Ver iniciativa</a>`;
@@ -192,12 +210,14 @@ $(document).ready(function() {
                 ],
                 language: {
                     url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
-                }
+                },
+                pageLength: 25
             });
 
         }
     });
 
+    // Filtro vencidos
     $('#filtroVencidos').click(function() {
         $.fn.dataTable.ext.search.push(function(settings, data) {
             return data[6].includes("VENCIDO");
@@ -205,6 +225,7 @@ $(document).ready(function() {
         tabla.draw();
     });
 
+    // Limpiar filtro
     $('#limpiarFiltro').click(function() {
         $.fn.dataTable.ext.search.pop();
         tabla.draw();
