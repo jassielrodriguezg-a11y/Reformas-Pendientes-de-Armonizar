@@ -27,9 +27,7 @@ body {
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-h2 {
-    color: #2c3e50;
-}
+h2 { color: #2c3e50; }
 
 #ultima-actualizacion {
     color: #7f8c8d;
@@ -41,22 +39,16 @@ h2 {
     font-weight: bold;
 }
 
-.filtros {
-    margin-bottom: 15px;
-}
-
 button {
     padding: 6px 10px;
-    border: none;
     border-radius: 5px;
-    background-color: #2980b9;
+    border: none;
+    background: #2980b9;
     color: white;
     cursor: pointer;
 }
 
-button:hover {
-    background-color: #1f5f8a;
-}
+button:hover { background: #1f5f8a; }
 </style>
 </head>
 
@@ -65,27 +57,25 @@ button:hover {
 <div class="container">
 
 <h2>Pendientes de Armonización Legislativa</h2>
-<div id="ultima-actualizacion">Cargando...</div>
-
+<div id="ultima-actualizacion"></div>
 <div class="stats" id="stats"></div>
 
-<div class="filtros">
-    <button id="filtroVencidos">Mostrar solo vencidos</button>
-    <button id="limpiarFiltro">Mostrar todos</button>
-</div>
+<button id="filtroVencidos">Solo vencidos</button>
+<button id="limpiarFiltro">Mostrar todos</button>
 
 <table id="tabla" class="display" style="width:100%">
 <thead>
 <tr>
 <th>No</th>
 <th>ORDENAMIENTO</th>
-<th>MATERIA REFORMA</th>
-<th>PUBLICACIÓN DOF</th>
+<th>MATERIA</th>
+<th>PUBLICACIÓN</th>
 <th>PLAZO</th>
 <th>FECHA LÍMITE</th>
 <th>VENCIMIENTO</th>
 <th>HECHO</th>
-<th>ENLACE</th>
+<th>DECRETO</th>
+<th>INICIATIVA</th>
 </tr>
 </thead>
 </table>
@@ -95,15 +85,20 @@ button:hover {
 <script>
 
 function calcularVencimiento(fechaLimiteStr) {
-    if (!fechaLimiteStr) return "";
+
+    if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente")) {
+        return "PENDIENTE";
+    }
 
     const partes = fechaLimiteStr.split("/");
-    const fechaLimiteUTC = Date.UTC(partes[2], partes[1]-1, partes[0]);
+    if (partes.length !== 3) return "PENDIENTE";
+
+    const fechaUTC = Date.UTC(partes[2], partes[1]-1, partes[0]);
 
     const hoy = new Date();
     const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
-    const diff = Math.round((fechaLimiteUTC - hoyUTC) / (1000 * 60 * 60 * 24));
+    const diff = Math.round((fechaUTC - hoyUTC) / (1000 * 60 * 60 * 24));
 
     if (diff < 0) return "VENCIDO";
     if (diff === 0) return "VENCE HOY";
@@ -119,17 +114,6 @@ $(document).ready(function() {
         dataType: "text",
         success: function(data, status, xhr) {
 
-            // Última actualización
-            const header = xhr.getResponseHeader("Last-Modified");
-            if (header) {
-                const fecha = new Date(header);
-                $("#ultima-actualizacion").text(
-                    "Última actualización: " +
-                    fecha.toLocaleDateString('es-MX')
-                );
-            }
-
-            // Parse CSV
             const parsed = Papa.parse(data, {
                 header: true,
                 skipEmptyLines: true
@@ -137,20 +121,23 @@ $(document).ready(function() {
 
             const datos = parsed.data;
 
-            // Contadores
-            let vencidos = 0, enTiempo = 0;
+            // Fecha actualización
+            const header = xhr.getResponseHeader("Last-Modified");
+            if (header) {
+                const fecha = new Date(header);
+                $("#ultima-actualizacion").text(
+                    "Última actualización: " + fecha.toLocaleDateString('es-MX')
+                );
+            }
 
+            // Stats
+            let vencidos = 0;
             datos.forEach(d => {
-                const v = calcularVencimiento(d["FECHA LÍMITE"]);
-                if (v === "VENCIDO") vencidos++;
-                else enTiempo++;
+                if (calcularVencimiento(d["FECHA LÍMITE"]) === "VENCIDO") vencidos++;
             });
 
-            $("#stats").html(
-                `🔴 Vencidos: ${vencidos} | 🟢 En plazo: ${enTiempo}`
-            );
+            $("#stats").html(`🔴 Vencidos: ${vencidos}`);
 
-            // Tabla
             tabla = $('#tabla').DataTable({
                 data: datos,
                 columns: [
@@ -171,34 +158,46 @@ $(document).ready(function() {
                             if (v === "VENCE HOY")
                                 return `<span style="color:orange;font-weight:bold;">${v}</span>`;
 
+                            if (v === "PENDIENTE")
+                                return `<span style="color:gray;">${v}</span>`;
+
                             return v;
                         }
                     },
                     {
                         data: "HECHO",
                         render: function(data) {
-                            if (data.toLowerCase() === "sí" || data.toLowerCase() === "si")
+                            if (data.toLowerCase().includes("iniciativa"))
                                 return '<span style="color:green;">✔</span>';
                             return '<span style="color:#999;">✖</span>';
                         }
                     },
                     {
-                        data: "ENLACE",
+                        data: "ENLACE DECRETO",
                         render: function(data) {
                             return `<a href="${data}" target="_blank">Ver</a>`;
+                        }
+                    },
+                    {
+                        data: "INICIATIVA LOCAL",
+                        render: function(data) {
+
+                            if (!data || data.toLowerCase().includes("no hay")) {
+                                return '<span style="color:#999;">No disponible</span>';
+                            }
+
+                            return `<a href="${data}" target="_blank">Ver iniciativa</a>`;
                         }
                     }
                 ],
                 language: {
                     url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
-                },
-                pageLength: 25
+                }
             });
 
         }
     });
 
-    // Filtro vencidos
     $('#filtroVencidos').click(function() {
         $.fn.dataTable.ext.search.push(function(settings, data) {
             return data[6].includes("VENCIDO");
@@ -206,7 +205,6 @@ $(document).ready(function() {
         tabla.draw();
     });
 
-    // Limpiar filtro
     $('#limpiarFiltro').click(function() {
         $.fn.dataTable.ext.search.pop();
         tabla.draw();
