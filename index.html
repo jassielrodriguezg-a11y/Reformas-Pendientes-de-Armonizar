@@ -1,155 +1,157 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pendientes de Armonización Legislativa</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendientes de Armonización Legislativa</title>
 
-    <link rel="icon" href="favicon.png" type="image/png">
+<link rel="icon" href="favicon.png" type="image/png">
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 40px;
-            background-color: #f9f9f9;
-            color: #333;
-        }
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    margin: 40px;
+    background-color: #f4f6f8;
+}
 
-        h2 {
-            margin-bottom: 5px;
-            color: #2c3e50;
-        }
+.container {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
 
-        #ultima-actualizacion {
-            margin-bottom: 25px;
-            font-weight: bold;
-            color: #7f8c8d;
-            font-size: 0.9em;
-        }
+h2 {
+    color: #2c3e50;
+}
 
-        /* Estilo para la tabla */
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+#ultima-actualizacion {
+    color: #7f8c8d;
+    margin-bottom: 15px;
+}
 
-        table.dataTable thead th {
-            background-color: #f2f2f2;
-            border-bottom: 2px solid #ddd;
-        }
-    </style>
+.stats {
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.filtros {
+    margin-bottom: 15px;
+}
+
+button {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #2980b9;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #1f5f8a;
+}
+</style>
 </head>
 
 <body>
 
-    <div class="container">
-        <h2>Pendientes de Armonización Legislativa</h2>
-        <div id="ultima-actualizacion">Cargando fecha de actualización...</div>
+<div class="container">
 
-        <table id="tabla" class="display" style="width:100%">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>ORDENAMIENTO</th>
-                    <th>MATERIA REFORMA</th>
-                    <th>PUBLICACIÓN DOF</th>
-                    <th>PLAZO PARA ARMONIZAR</th>
-                    <th>FECHA LÍMITE</th>
-                    <th>VENCIMIENTO</th>
-                    <th>HECHO</th>
-                    <th>ENLACE</th>
-                </tr>
-            </thead>
-        </table>
-    </div>
+<h2>Pendientes de Armonización Legislativa</h2>
+<div id="ultima-actualizacion">Cargando...</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="filtros">
+    <button id="filtroVencidos">Mostrar solo vencidos</button>
+    <button id="limpiarFiltro">Mostrar todos</button>
+</div>
+
+<table id="tabla" class="display" style="width:100%">
+<thead>
+<tr>
+<th>No</th>
+<th>ORDENAMIENTO</th>
+<th>MATERIA REFORMA</th>
+<th>PUBLICACIÓN DOF</th>
+<th>PLAZO</th>
+<th>FECHA LÍMITE</th>
+<th>VENCIMIENTO</th>
+<th>HECHO</th>
+<th>ENLACE</th>
+</tr>
+</thead>
+</table>
+
+</div>
 
 <script>
-// Función para calcular los días restantes o si ya venció
+
 function calcularVencimiento(fechaLimiteStr) {
     if (!fechaLimiteStr) return "";
 
     const partes = fechaLimiteStr.split("/");
-    const fechaLimiteUTC = Date.UTC(
-        parseInt(partes[2]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[0])
-    );
+    const fechaLimiteUTC = Date.UTC(partes[2], partes[1]-1, partes[0]);
 
     const hoy = new Date();
-    const hoyUTC = Date.UTC(
-        hoy.getFullYear(),
-        hoy.getMonth(),
-        hoy.getDate()
-    );
+    const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
-    const diferencia = Math.round((fechaLimiteUTC - hoyUTC) / (1000 * 60 * 60 * 24));
+    const diff = Math.round((fechaLimiteUTC - hoyUTC) / (1000 * 60 * 60 * 24));
 
-    if (diferencia < 0) {
-        return "VENCIDO";
-    } else if (diferencia === 0) {
-        return "VENCE HOY";
-    } else {
-        return "FALTAN " + diferencia + " DÍAS";
-    }
+    if (diff < 0) return "VENCIDO";
+    if (diff === 0) return "VENCE HOY";
+    return "FALTAN " + diff + " DÍAS";
 }
 
+let tabla;
+
 $(document).ready(function() {
-    // 1. Obtener la fecha de última modificación del archivo CSV (HEAD request)
-    $.ajax({
-        type: "HEAD",
-        url: "datos.csv?v=" + new Date().getTime(),
-        complete: function(xhr) {
-            const ultimaModHeader = xhr.getResponseHeader('Last-Modified');
-            let textoFecha = "Fecha no disponible";
 
-            if (ultimaModHeader) {
-                const fecha = new Date(ultimaModHeader);
-                textoFecha = fecha.toLocaleDateString('es-MX', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-            }
-            document.getElementById("ultima-actualizacion").innerText = "Última actualización: " + textoFecha;
-        }
-    });
-
-    // 2. Cargar y procesar los datos del CSV
     $.ajax({
         url: "datos.csv?v=" + new Date().getTime(),
         dataType: "text",
-        success: function(data) {
-            const lineas = data.trim().split("\n");
-            const encabezados = lineas[0].split(",");
-            const datos = [];
+        success: function(data, status, xhr) {
 
-            for (let i = 1; i < lineas.length; i++) {
-                if (!lineas[i].trim()) continue;
-
-                // Regex mejorado para manejar celdas con comas internas (como el punto 8 y 13 del CSV)
-                const fila = lineas[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
-                
-                if (fila) {
-                    const objeto = {};
-                    encabezados.forEach((enc, index) => {
-                        let valor = fila[index] ? fila[index].trim() : "";
-                        // Quitar comillas si existen
-                        valor = valor.replace(/^"|"$/g, "");
-                        objeto[enc.trim()] = valor;
-                    });
-                    datos.push(objeto);
-                }
+            // Última actualización
+            const header = xhr.getResponseHeader("Last-Modified");
+            if (header) {
+                const fecha = new Date(header);
+                $("#ultima-actualizacion").text(
+                    "Última actualización: " +
+                    fecha.toLocaleDateString('es-MX')
+                );
             }
 
-            // 3. Inicializar DataTable
-            $('#tabla').DataTable({
+            // Parse CSV
+            const parsed = Papa.parse(data, {
+                header: true,
+                skipEmptyLines: true
+            });
+
+            const datos = parsed.data;
+
+            // Contadores
+            let vencidos = 0, enTiempo = 0;
+
+            datos.forEach(d => {
+                const v = calcularVencimiento(d["FECHA LÍMITE"]);
+                if (v === "VENCIDO") vencidos++;
+                else enTiempo++;
+            });
+
+            $("#stats").html(
+                `🔴 Vencidos: ${vencidos} | 🟢 En plazo: ${enTiempo}`
+            );
+
+            // Tabla
+            tabla = $('#tabla').DataTable({
                 data: datos,
                 columns: [
                     { data: "No" },
@@ -161,28 +163,58 @@ $(document).ready(function() {
                     {
                         data: "FECHA LÍMITE",
                         render: function(data) {
-                            return calcularVencimiento(data);
+                            const v = calcularVencimiento(data);
+
+                            if (v === "VENCIDO")
+                                return `<span style="color:red;font-weight:bold;">${v}</span>`;
+
+                            if (v === "VENCE HOY")
+                                return `<span style="color:orange;font-weight:bold;">${v}</span>`;
+
+                            return v;
                         }
                     },
-                    { data: "HECHO" },
+                    {
+                        data: "HECHO",
+                        render: function(data) {
+                            if (data.toLowerCase() === "sí" || data.toLowerCase() === "si")
+                                return '<span style="color:green;">✔</span>';
+                            return '<span style="color:#999;">✖</span>';
+                        }
+                    },
                     {
                         data: "ENLACE",
                         render: function(data) {
-                            return '<a href="' + data + '" target="_blank" style="color: #2980b9; text-decoration: none; font-weight: bold;">Ver decreto</a>';
+                            return `<a href="${data}" target="_blank">Ver</a>`;
                         }
                     }
                 ],
                 language: {
                     url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
                 },
-                pageLength: 25,
-                responsive: true
+                pageLength: 25
             });
+
         }
     });
+
+    // Filtro vencidos
+    $('#filtroVencidos').click(function() {
+        $.fn.dataTable.ext.search.push(function(settings, data) {
+            return data[6].includes("VENCIDO");
+        });
+        tabla.draw();
+    });
+
+    // Limpiar filtro
+    $('#limpiarFiltro').click(function() {
+        $.fn.dataTable.ext.search.pop();
+        tabla.draw();
+    });
+
 });
+
 </script>
 
 </body>
 </html>
-
