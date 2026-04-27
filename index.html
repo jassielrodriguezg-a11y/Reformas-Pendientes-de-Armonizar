@@ -9,33 +9,45 @@
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #f4f6f8; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 1300px; margin: auto; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 1350px; margin: auto; }
         #ultima-actualizacion { color: #7f8c8d; font-size: 0.9em; margin-bottom: 20px; }
+        
         .stats-container { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
         .stat-card { flex: 1; min-width: 180px; padding: 15px; border-radius: 8px; text-align: center; background: #fff; border: 1px solid #e1e4e8; }
         .stat-number { display: block; font-size: 1.6em; font-weight: bold; margin-bottom: 5px; }
+
         .badge { padding: 5px 10px; border-radius: 15px; font-size: 0.75em; font-weight: bold; text-transform: uppercase; display: inline-block; }
         .badge-red { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
         .badge-orange { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffcc80; }
         .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .badge-gray { background-color: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
-        .controls { margin-bottom: 20px; }
-        button { padding: 8px 16px; border-radius: 6px; border: none; background: #34495e; color: white; cursor: pointer; font-weight: 500; }
-        #filtroVencidos { background: #e74c3c; }
+
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        button { padding: 8px 14px; border-radius: 6px; border: none; background: #34495e; color: white; cursor: pointer; font-weight: 500; transition: 0.3s; }
+        button:hover { opacity: 0.8; }
+        
+        /* Colores específicos para botones de filtros */
+        .btn-vencido { background: #c0392b; }
+        .btn-iniciativa-vencida { background: #d35400; }
+        .btn-iniciativa-vigente { background: #2980b9; }
+        .btn-reset { background: #7f8c8d; }
+
         a { color: #2980b9; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Pendientes de Armonización Legislativa</h2>
+    <h2>Portal de Obligaciones de Armonización Legislativa</h2>
     <div id="ultima-actualizacion">Cargando fecha...</div>
     
     <div id="stats"></div>
 
     <div class="controls">
-        <button id="filtroVencidos">Solo Vencidos</button>
-        <button id="limpiarFiltro">Mostrar Todo</button>
+        <button class="btn-reset" id="limpiarFiltro">Mostrar Todo</button>
+        <button class="btn-vencido" id="filtroVencidos">Solo Vencidos</button>
+        <button class="btn-iniciativa-vencida" id="filtroIniciativaVencida">Vencidos con Iniciativa</button>
+        <button class="btn-iniciativa-vigente" id="filtroIniciativaVigente">Vigentes con Iniciativa</button>
     </div>
 
     <table id="tabla" class="display" style="width:100%">
@@ -57,7 +69,6 @@
 </div>
 
 <script>
-// Función para calcular la diferencia de días
 function calcularVencimiento(fechaLimiteStr) {
     if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente") || fechaLimiteStr === "-") return "PENDIENTE";
     const partes = fechaLimiteStr.split("/");
@@ -65,11 +76,12 @@ function calcularVencimiento(fechaLimiteStr) {
     const hoy = new Date();
     const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     const diff = Math.round((fechaUTC - hoyUTC) / (1000 * 60 * 60 * 24));
-    
     if (diff < 0) return "VENCIDO";
     if (diff === 0) return "VENCE HOY";
     return "FALTAN " + diff + " DÍAS";
 }
+
+let tabla;
 
 $(document).ready(function() {
     $.ajax({
@@ -82,20 +94,19 @@ $(document).ready(function() {
             // Fecha de actualización
             const header = xhr.getResponseHeader("Last-Modified");
             if (header) {
-                const fecha = new Date(header);
-                $("#ultima-actualizacion").text("Última actualización: " + fecha.toLocaleDateString('es-MX'));
+                $("#ultima-actualizacion").text("Última actualización: " + new Date(header).toLocaleDateString('es-MX'));
             } else {
                 $("#ultima-actualizacion").text("Última actualización: " + new Date().toLocaleDateString('es-MX'));
             }
 
-            // Conteo para el Dashboard
+            // Conteo para Dashboard
             let vencidos = 0, enDictamen = 0, cumplidos = 0, pendientes = 0;
             datos.forEach(d => {
-                const hecho = d["HECHO"].toLowerCase();
-                const vStatus = calcularVencimiento(d["FECHA LÍMITE"]);
-                if (hecho.includes("si") || hecho === "sí") cumplidos++;
-                else if (hecho.includes("dictamen")) enDictamen++;
-                else if (vStatus === "VENCIDO") vencidos++;
+                const h = d["HECHO"].toLowerCase();
+                const v = calcularVencimiento(d["FECHA LÍMITE"]);
+                if (h.includes("si") || h === "sí") cumplidos++;
+                else if (h.includes("dictamen")) enDictamen++;
+                else if (v === "VENCIDO") vencidos++;
                 else pendientes++;
             });
 
@@ -120,13 +131,9 @@ $(document).ready(function() {
                     {
                         data: "FECHA LÍMITE",
                         render: function(data, type, row) {
-                            const hecho = row.HECHO.toLowerCase();
+                            const h = row.HECHO.toLowerCase();
                             const v = calcularVencimiento(data);
-                            
-                            // Ajuste: Si ya está cumplido, mostramos badge verde
-                            if (hecho.includes("si")) return `<span class="badge badge-green">Cumplido</span>`;
-                            
-                            // Ajuste solicitado: Solo tiempo o Vencido
+                            if (h.includes("si")) return `<span class="badge badge-green">Cumplido</span>`;
                             if (v === "VENCIDO") return `<span class="badge badge-red">${v}</span>`;
                             if (v === "VENCE HOY") return `<span class="badge badge-orange">${v}</span>`;
                             return `<span class="badge badge-gray">${v}</span>`;
@@ -134,33 +141,64 @@ $(document).ready(function() {
                     },
                     {
                         data: "HECHO",
-                        render: function(data) {
-                            const val = data.toLowerCase();
-                            if (val.includes("dictamen")) return `<span style="color:#2980b9;">● Dictamen pendiente</span>`;
-                            if (val === "si" || val === "sí") return `<span style="color:#27ae60; font-weight:bold;">✔ Sí</span>`;
-                            return `<span style="color:#ccc;">No</span>`;
-                        }
+                        render: d => d.toLowerCase().includes("dictamen") ? `<span style="color:#2980b9;">● Dictamen</span>` : (d.toLowerCase().includes("si") ? '✔ Sí' : 'No')
                     },
                     { data: "ENLACE DECRETO", render: d => `<a href="${d}" target="_blank">📄</a>` },
-                    { data: "INICIATIVA LOCAL", render: d => (d && d.toLowerCase() !== "no hay") ? `<a href="${d}" target="_blank">📂 Ver</a>` : '-' }
+                    {
+                        data: "INICIATIVA LOCAL",
+                        render: d => (d && d.toLowerCase() !== "no hay") ? `<a href="${d}" target="_blank">📂 Ver</a>` : '<span style="color:#ccc;">-</span>'
+                    }
                 ],
-                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
-                pageLength: 20
+                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
             });
         }
     });
 
+    // --- FUNCIONES DE FILTRADO ---
+
+    function limpiarFiltros() {
+        while($.fn.dataTable.ext.search.length > 0) {
+            $.fn.dataTable.ext.search.pop();
+        }
+    }
+
+    $('#limpiarFiltro').click(function() {
+        limpiarFiltros();
+        tabla.draw();
+    });
+
     $('#filtroVencidos').click(function() {
+        limpiarFiltros();
         $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
             const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
             const h = rowData["HECHO"].toLowerCase();
-            return v === "VENCIDO" && !h.includes("si") && !h.includes("dictamen");
+            return v === "VENCIDO" && !h.includes("si");
         });
         tabla.draw();
     });
 
-    $('#limpiarFiltro').click(function() {
-        $.fn.dataTable.ext.search.pop();
+    // Filtro: Vencidos con Iniciativa Presentada
+    $('#filtroIniciativaVencida').click(function() {
+        limpiarFiltros();
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
+            const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
+            const ini = rowData["INICIATIVA LOCAL"].toLowerCase();
+            const h = rowData["HECHO"].toLowerCase();
+            return v === "VENCIDO" && !h.includes("si") && ini !== "no hay" && ini !== "";
+        });
+        tabla.draw();
+    });
+
+    // Filtro: Vigentes (no vencidos) con Iniciativa Presentada
+    $('#filtroIniciativaVigente').click(function() {
+        limpiarFiltros();
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
+            const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
+            const ini = rowData["INICIATIVA LOCAL"].toLowerCase();
+            const h = rowData["HECHO"].toLowerCase();
+            // No vencido = "PENDIENTE", "FALTAN X DÍAS" o "VENCE HOY"
+            return v !== "VENCIDO" && !h.includes("si") && ini !== "no hay" && ini !== "";
+        });
         tabla.draw();
     });
 });
