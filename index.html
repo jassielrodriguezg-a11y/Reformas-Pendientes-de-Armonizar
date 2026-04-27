@@ -87,7 +87,18 @@ $(document).ready(function() {
         success: function(data, status, xhr) {
             const parsed = Papa.parse(data, { header: true, skipEmptyLines: true });
             const datos = parsed.data;
-
+// 2. RECUPERAR FECHA (Tu código original restaurado)
+    const header = xhr.getResponseHeader("Last-Modified");
+    if (header) {
+        const fecha = new Date(header);
+        $("#ultima-actualizacion").text(
+            "Última actualización: " + fecha.toLocaleDateString('es-MX')
+        );
+    } else {
+        // Opcional: Si por alguna razón falla el header en una sesión, 
+        // ponemos la fecha de hoy para que no se vea el "Cargando"
+        $("#ultima-actualizacion").text("Última actualización: " + new Date().toLocaleDateString('es-MX'));
+    }
             // --- Lógica de Conteo Específica ---
             let vencidos = 0, enDictamen = 0, cumplidos = 0, pendientes = 0;
 
