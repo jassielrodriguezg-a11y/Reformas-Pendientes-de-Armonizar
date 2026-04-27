@@ -1,94 +1,140 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pendientes de Armonización Legislativa</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Armonización Legislativa</title>
 
-<link rel="icon" href="favicon.png" type="image/png">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 40px;
+            background-color: #f4f6f8;
+            color: #333;
+        }
 
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 1200px;
+            margin: auto;
+        }
 
-<style>
-body {
-    font-family: 'Segoe UI', sans-serif;
-    margin: 40px;
-    background-color: #f4f6f8;
-}
+        h2 { color: #2c3e50; margin-top: 0; }
 
-.container {
-    background: white;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
+        #ultima-actualizacion {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
 
-h2 { color: #2c3e50; }
+        /* --- Dashboard de Estadísticas --- */
+        .stats-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
 
-#ultima-actualizacion {
-    color: #7f8c8d;
-    margin-bottom: 15px;
-}
+        .stat-card {
+            flex: 1;
+            min-width: 200px;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
 
-.stats {
-    margin-bottom: 15px;
-    font-weight: bold;
-}
+        .stat-number {
+            display: block;
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
 
-button {
-    padding: 6px 10px;
-    border-radius: 5px;
-    border: none;
-    background: #2980b9;
-    color: white;
-    cursor: pointer;
-    margin-right: 5px;
-}
+        /* --- Etiquetas de Estado (Badges) --- */
+        .badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+        .badge-red { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .badge-orange { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffcc80; }
+        .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .badge-gray { background-color: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
 
-button:hover { background: #1f5f8a; }
-</style>
+        /* --- Botones --- */
+        .controls { margin-bottom: 20px; }
+        
+        button {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: #34495e;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+
+        button:hover { background: #2c3e50; }
+        
+        #filtroVencidos { background: #e74c3c; }
+        #filtroVencidos:hover { background: #c0392b; }
+
+        /* Ajustes Tabla */
+        table.dataTable thead th { background-color: #f8f9fa; color: #2c3e50; }
+        a { color: #2980b9; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+    </style>
 </head>
-
 <body>
 
 <div class="container">
+    <h2>Pendientes de Armonización Legislativa</h2>
+    <div id="ultima-actualizacion">Cargando fecha...</div>
+    
+    <div id="stats"></div>
 
-<h2>Pendientes de Armonización Legislativa</h2>
-<div id="ultima-actualizacion"></div>
-<div class="stats" id="stats"></div>
+    <div class="controls">
+        <button id="filtroVencidos">Ver Incumplimientos Vencidos</button>
+        <button id="limpiarFiltro">Mostrar Todo</button>
+    </div>
 
-<button id="filtroVencidos">Solo vencidos</button>
-<button id="limpiarFiltro">Mostrar todos</button>
-
-<table id="tabla" class="display" style="width:100%">
-<thead>
-<tr>
-<th>No</th>
-<th>ORDENAMIENTO</th>
-<th>MATERIA</th>
-<th>PUBLICACIÓN</th>
-<th>PLAZO</th>
-<th>FECHA LÍMITE</th>
-<th>VENCIMIENTO</th>
-<th>HECHO</th>
-<th>DECRETO</th>
-<th>INICIATIVA LOCAL</th>
-</tr>
-</thead>
-</table>
-
+    <table id="tabla" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Ordenamiento</th>
+                <th>Materia</th>
+                <th>Publicación</th>
+                <th>Plazo</th>
+                <th>Fecha Límite</th>
+                <th>Estado</th>
+                <th>Hecho</th>
+                <th>Decreto</th>
+                <th>Iniciativa</th>
+            </tr>
+        </thead>
+    </table>
 </div>
 
 <script>
-
-// Calcular vencimiento
+// Función para calcular días y estado
 function calcularVencimiento(fechaLimiteStr) {
-
-    if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente")) {
+    if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente") || fechaLimiteStr === "-") {
         return "PENDIENTE";
     }
 
@@ -96,7 +142,6 @@ function calcularVencimiento(fechaLimiteStr) {
     if (partes.length !== 3) return "PENDIENTE";
 
     const fechaUTC = Date.UTC(partes[2], partes[1]-1, partes[0]);
-
     const hoy = new Date();
     const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
@@ -110,12 +155,10 @@ function calcularVencimiento(fechaLimiteStr) {
 let tabla;
 
 $(document).ready(function() {
-
     $.ajax({
         url: "datos.csv?v=" + new Date().getTime(),
         dataType: "text",
         success: function(data, status, xhr) {
-
             const parsed = Papa.parse(data, {
                 header: true,
                 skipEmptyLines: true
@@ -123,24 +166,40 @@ $(document).ready(function() {
 
             const datos = parsed.data;
 
-            // Última actualización
-            const header = xhr.getResponseHeader("Last-Modified");
-            if (header) {
-                const fecha = new Date(header);
-                $("#ultima-actualizacion").text(
-                    "Última actualización: " +
-                    fecha.toLocaleDateString('es-MX')
-                );
+            // --- Actualizar Fecha y Estadísticas ---
+            const modHeader = xhr.getResponseHeader("Last-Modified");
+            if (modHeader) {
+                $("#ultima-actualizacion").text("Última actualización: " + new Date(modHeader).toLocaleDateString('es-MX'));
             }
 
-            // Contador
-            let vencidos = 0;
+            let vencidos = 0, pendientes = 0, cumplidos = 0;
+
             datos.forEach(d => {
-                if (calcularVencimiento(d["FECHA LÍMITE"]) === "VENCIDO") vencidos++;
+                const vStatus = calcularVencimiento(d["FECHA LÍMITE"]);
+                const hecho = d["HECHO"].toLowerCase();
+                if (hecho.includes("sí") || hecho === "si") cumplidos++;
+                else if (vStatus === "VENCIDO") vencidos++;
+                else pendientes++;
             });
 
-            $("#stats").html(`🔴 Vencidos: ${vencidos}`);
+            $("#stats").html(`
+                <div class="stats-container">
+                    <div class="stat-card" style="border-top: 5px solid #e74c3c;">
+                        <span class="stat-number" style="color:#e74c3c;">${vencidos}</span>
+                        <span>Vencidos</span>
+                    </div>
+                    <div class="stat-card" style="border-top: 5px solid #f39c12;">
+                        <span class="stat-number" style="color:#f39c12;">${pendientes}</span>
+                        <span>En Proceso</span>
+                    </div>
+                    <div class="stat-card" style="border-top: 5px solid #27ae60;">
+                        <span class="stat-number" style="color:#27ae60;">${cumplidos}</span>
+                        <span>Cumplidos</span>
+                    </div>
+                </div>
+            `);
 
+            // --- Inicializar DataTables ---
             tabla = $('#tabla').DataTable({
                 data: datos,
                 columns: [
@@ -152,87 +211,61 @@ $(document).ready(function() {
                     { data: "FECHA LÍMITE" },
                     {
                         data: "FECHA LÍMITE",
-                        render: function(data) {
+                        render: function(data, type, row) {
                             const v = calcularVencimiento(data);
-
-                            if (v === "VENCIDO")
-                                return `<span style="color:red;font-weight:bold;">${v}</span>`;
-
-                            if (v === "VENCE HOY")
-                                return `<span style="color:orange;font-weight:bold;">${v}</span>`;
-
-                            if (v === "PENDIENTE")
-                                return `<span style="color:gray;">${v}</span>`;
-
-                            return v;
+                            const hecho = row.HECHO.toLowerCase();
+                            
+                            // Si ya se cumplió, el estado es verde independientemente de la fecha
+                            if (hecho.includes("si") || hecho === "sí") {
+                                return `<span class="badge badge-green">Cumplido</span>`;
+                            }
+                            if (v === "VENCIDO") return `<span class="badge badge-red">${v}</span>`;
+                            if (v === "VENCE HOY") return `<span class="badge badge-orange">${v}</span>`;
+                            return `<span class="badge badge-gray">${v}</span>`;
                         }
                     },
                     {
                         data: "HECHO",
                         render: function(data) {
-
-                            if (!data) return '';
-
-                            const valor = data.toLowerCase();
-
-                            if (valor.includes("dictamen pendiente")) {
-                                return '<span style="color:orange; font-weight:bold;">Dictamen pendiente</span>';
-                            }
-
-                            if (valor === "no") {
-                                return '<span style="color:#999;">No</span>';
-                            }
-
-                            if (valor === "sí" || valor === "si") {
-                                return '<span style="color:green;">✔ Cumplido</span>';
-                            }
-
-                            return data;
+                            const val = data.toLowerCase();
+                            if (val.includes("dictamen")) return `<span style="color:#e67e22;">● Dictamen</span>`;
+                            if (val === "si" || val === "sí") return `<span style="color:#27ae60;">✔</span>`;
+                            return `<span style="color:#ccc;">No</span>`;
                         }
                     },
                     {
                         data: "ENLACE DECRETO",
-                        render: function(data) {
-                            return `<a href="${data}" target="_blank">Ver</a>`;
-                        }
+                        render: data => `<a href="${data}" target="_blank">📄</a>`
                     },
                     {
                         data: "INICIATIVA LOCAL",
-                        render: function(data) {
-
-                            if (!data || data.toLowerCase().includes("no hay")) {
-                                return '<span style="color:#999;">No hay</span>';
-                            }
-
-                            return `<a href="${data}" target="_blank">Ver iniciativa</a>`;
-                        }
+                        render: data => (data && data.toLowerCase() !== "no hay") 
+                            ? `<a href="${data}" target="_blank">📂 Ver</a>` 
+                            : `<span style="color:#ccc;">-</span>`
                     }
                 ],
-                language: {
-                    url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
-                },
-                pageLength: 25
+                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
+                pageLength: 15,
+                responsive: true
             });
-
         }
     });
 
-    // Filtro vencidos
+    // Modificación 2: Filtro de Vencidos Inteligente (Excluye cumplidos)
     $('#filtroVencidos').click(function() {
-        $.fn.dataTable.ext.search.push(function(settings, data) {
-            return data[6].includes("VENCIDO");
+        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
+            const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
+            const hecho = rowData["HECHO"].toLowerCase();
+            return v === "VENCIDO" && !hecho.includes("si");
         });
         tabla.draw();
     });
 
-    // Limpiar filtro
     $('#limpiarFiltro').click(function() {
         $.fn.dataTable.ext.search.pop();
         tabla.draw();
     });
-
 });
-
 </script>
 
 </body>
