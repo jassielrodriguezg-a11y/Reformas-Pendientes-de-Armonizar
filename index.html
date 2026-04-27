@@ -228,7 +228,7 @@ $(document).ready(function() {
                         data: "HECHO",
                         render: function(data) {
                             const val = data.toLowerCase();
-                            if (val.includes("dictamen")) return `<span style="color:#e67e22;">● Dictamen</span>`;
+                            if (val.includes("dictamen")) return `<span style="color:#e67e22;">● En Dictaminación</span>`;
                             if (val === "si" || val === "sí") return `<span style="color:#27ae60;">✔</span>`;
                             return `<span style="color:#ccc;">No</span>`;
                         }
