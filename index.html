@@ -198,11 +198,11 @@ $(document).ready(function() {
     `);
 
     tabla = $('#tabla').DataTable({
-         datos,
+        data: datos,
         columns: [
-            {  "No" },
-            {  "ORDENAMIENTO" },
-            {  "MATERIA REFORMA" },
+            { data: "No" },
+            { data: "ORDENAMIENTO" },
+            { data: "MATERIA REFORMA" },
             { data: "PUBLICACIÓN DOF" },
             { data: "PLAZO PARA ARMONIZAR" },
             { data: "FECHA LÍMITE" },
@@ -404,4 +404,3 @@ $('#btnExportarPDF').click(function() {
 </script>
 </body>
 </html>
-
