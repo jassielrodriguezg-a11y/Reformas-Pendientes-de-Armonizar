@@ -93,7 +93,7 @@
                 <th>Estado</th>
                 <th>Hecho</th>
                 <th>Decreto</th>
-                <th>Iniciativa</th>
+                <th>¿Iniciativa local presentada?</th>
             </tr>
         </thead>
     </table>
@@ -336,7 +336,7 @@ $('#btnExportarPDF').click(function() {
 
     doc.autoTable({
         startY: 32,
-        head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', 'Iniciativa']],
+        head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', '¿Iniciativa local presentada?']],
         body: bodyRows,
         theme: 'grid',
         styles: {
