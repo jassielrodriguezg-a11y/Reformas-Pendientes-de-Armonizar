@@ -93,14 +93,14 @@
                 <th>Estado</th>
                 <th>Hecho</th>
                 <th>Decreto</th>
-                <th>¿Iniciativa local presentada?</th>
+                <th>Iniciativa local</th>
             </tr>
         </thead>
     </table>
 </div>
 
 <script>
-// Datos CSV embebidos para funcionamiento autónomo
+// Datos CSV embebidos
 const csvData = `No,ORDENAMIENTO,MATERIA REFORMA,PUBLICACIÓN DOF,PLAZO PARA ARMONIZAR,FECHA LÍMITE,VENCIMIENTO,HECHO,ENLACE DECRETO,INICIATIVA LOCAL
 1,Constitución Política de los Estados Unidos Mexicanos,Igualdad Sustantiva,15/11/2024,180 días,14/05/2025,VENCIDO,Dictamen pendiente,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_264_15nov24.pdf,https://www.legisver.gob.mx/numeralia/numeraliaLXVII/iniciativas/FICHASDEINICIATIVASACTUALIZACION26032026F.pdf#page=67
 2,Constitución Política de los Estados Unidos Mexicanos,Bienestar,02/12/2024,180 días,02/06/2025,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_265_02dic24.pdf,No hay
@@ -198,11 +198,11 @@ $(document).ready(function() {
     `);
 
     tabla = $('#tabla').DataTable({
-        data: datos,
+         datos,
         columns: [
-            { data: "No" },
-            { data: "ORDENAMIENTO" },
-            { data: "MATERIA REFORMA" },
+            {  "No" },
+            {  "ORDENAMIENTO" },
+            {  "MATERIA REFORMA" },
             { data: "PUBLICACIÓN DOF" },
             { data: "PLAZO PARA ARMONIZAR" },
             { data: "FECHA LÍMITE" },
@@ -336,7 +336,7 @@ $('#btnExportarPDF').click(function() {
 
     doc.autoTable({
         startY: 32,
-        head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', '¿Iniciativa local presentada?']],
+        head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', 'Iniciativa local']],
         body: bodyRows,
         theme: 'grid',
         styles: {
