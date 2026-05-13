@@ -7,6 +7,8 @@
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #f4f6f8; color: #333; }
         .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 1400px; margin: auto; }
@@ -46,12 +48,26 @@
         .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .badge-gray { background-color: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
 
-        .controls { margin-bottom: 20px; }
-        button { padding: 8px 16px; border-radius: 6px; border: none; background: #34495e; color: white; cursor: pointer; font-weight: 500; }
+        .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        button { padding: 8px 16px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: 500; transition: opacity 0.2s; }
+        button:hover { opacity: 0.85; }
+        .btn-gray { background: #7f8c8d; }
+        .btn-pdf { background: #e74c3c; }
+        .btn-pdf:hover { background: #c0392b; }
         a { color: #2980b9; text-decoration: none; font-weight: bold; }
+
+        #pdfMsg { display: none; color: #27ae60; font-size: 0.85em; font-weight: 500; margin-left: auto; }
+        
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.85); display: flex; justify-content: center; align-items: center;
+            z-index: 999; font-size: 1.2em; color: #34495e;
+        }
     </style>
 </head>
 <body>
+
+<div id="loading" class="loading-overlay">Cargando datos...</div>
 
 <div class="container">
     <h2>Portal de Obligaciones de Armonización Legislativa</h2>
@@ -60,7 +76,9 @@
     <div id="stats"></div>
 
     <div class="controls">
-        <button id="limpiarFiltro" style="background:#7f8c8d;">Ver Todo el Listado</button>
+        <button id="limpiarFiltro" class="btn-gray">Ver Todo el Listado</button>
+        <button id="btnExportarPDF" class="btn-pdf">📄 Exportar Pendientes en PDF</button>
+        <span id="pdfMsg"></span>
     </div>
 
     <table id="tabla" class="display" style="width:100%">
@@ -82,106 +100,148 @@
 </div>
 
 <script>
+// Datos CSV embebidos para funcionamiento autónomo
+const csvData = `No,ORDENAMIENTO,MATERIA REFORMA,PUBLICACIÓN DOF,PLAZO PARA ARMONIZAR,FECHA LÍMITE,VENCIMIENTO,HECHO,ENLACE DECRETO,INICIATIVA LOCAL
+1,Constitución Política de los Estados Unidos Mexicanos,Igualdad Sustantiva,15/11/2024,180 días,14/05/2025,VENCIDO,Dictamen pendiente,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_264_15nov24.pdf,https://www.legisver.gob.mx/numeralia/numeraliaLXVII/iniciativas/FICHASDEINICIATIVASACTUALIZACION26032026F.pdf#page=67
+2,Constitución Política de los Estados Unidos Mexicanos,Bienestar,02/12/2024,180 días,02/06/2025,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_265_02dic24.pdf,No hay
+3,Constitución Política de los Estados Unidos Mexicanos,Nepotismo,01/04/2025,180 días,02/10/2025,VENCIDO,Dictamen pendiente,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_274_01abr25.pdf,https://www.legisver.gob.mx/numeralia/numeraliaLXVII/iniciativas/FICHASDEINICIATIVASACTUALIZACION26032026F.pdf#page=82
+4,Constitución Política de los Estados Unidos Mexicanos,Soberanía Nacional,01/04/2025,180 días,02/10/2025,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_273_01abr25.pdf,No hay
+5,Constitución Política de los Estados Unidos Mexicanos,Prisión preventiva,31/12/2024,365 días,01/01/2026,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_269_31dic24.pdf,No hay
+6,Constitución Política de los Estados Unidos Mexicanos,Protección a la salud,17/01/2025,365 días,18/01/2026,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_271_17ene25.pdf,No hay
+7,Ley General de Aguas,Expedición de la ley,11/12/2025,180 días,11/06/2026,FALTAN 121 DÍAS,No,https://www.diputados.gob.mx/LeyesBiblio/pdf/LGAg.pdf,No hay
+8,"Ley Federal de los Trabajadores al Servicio del Estado, Reglamentaria del Apartado B) del Artículo 123 Constitucional",Independencia sindical,15/12/2025,45 días,29/01/2026,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/lftse/LFTSE_ref29_15dic25.pdf,No hay
+9,Ley Federal para la Prevención e Identificación de Operaciones con Recursos de Procedencia Ilícita,Notariado,16/07/2025,180 días,17/01/2026,VENCIDO,No,https://www.diputados.gob.mx/LeyesBiblio/ref/lfpiorpi/LFPIORPI_ref03_16jul25.pdf,No hay
+10,Ley Nacional para Eliminar Trámites Burocráticos,Expedición de la ley,16/07/2025,180 días,17/01/2026,VENCIDO,Dictamen pendiente,https://www.diputados.gob.mx/LeyesBiblio/ref/lnetb/LNETB_orig_16jul25.pdf,https://www.legisver.gob.mx/numeralia/numeraliaLXVII/iniciativas/FICHASDEINICIATIVASACTUALIZACION26032026F.pdf#page=210
+11,"Ley General de Acceso de las Mujeres a una Vida Libre de Violencia; del Código Nacional de Procedimientos Civiles y Familiares; de la Ley Federal de los Trabajadores al Servicio del Estado; de la Ley General de Desarrollo Social; de la Ley General de Salud; de la Ley General de Educación; de la Ley del Seguro Social; de la Ley de Migración; de la Ley General de los Derechos de Niñas, Niños y Adolescentes; de la Ley del ISSSTE; de la Ley de Planeación; de la Ley de Vivienda; de la Ley Federal del Trabajo; de la Ley Federal del Derecho de Autor; de la Ley Federal de Protección a la Propiedad Industrial y de la Ley General de Cultura",Igualdad sustantiva,15/01/2026,180 días,15/07/2026,FALTAN 155 DÍAS,No,https://www.diputados.gob.mx/LeyesBiblio/ref/lgimh/LGISMH_ref18_15ene26.pdf,No hay
+12,Ley General de Economía Circular,Expedición de la ley,19/01/2026,180 días,19/07/2026,FALTAN 159 DÍAS,Dictamen pendiente,https://www.diputados.gob.mx/LeyesBiblio/pdf/LGEC.pdf,https://www.legisver.gob.mx/numeralia/numeraliaLXVII/iniciativas/FICHASDEINICIATIVASACTUALIZACION26032026F.pdf#page=211
+13,Constitución Política de los Estados Unidos Mexicanos,Límite Pensiones,10/04/2026,90 días,10/07/2026,Pendiente,No,https://www.diputados.gob.mx/LeyesBiblio/ref/dof/CPEUM_ref_280_10abr26.pdf,No hay
+14,Constitución Política de los Estados Unidos Mexicanos,Plan B Reforma Electoral,23/04/2026,-,30/05/2026,Pendiente,No,https://www.dof.gob.mx/nota_detalle.php?codigo=5785817&fecha=23/04/2026#gsc.tab=0,No hay`;
+
 function calcularVencimiento(fechaLimiteStr) {
     if (!fechaLimiteStr || fechaLimiteStr.toLowerCase().includes("pendiente") || fechaLimiteStr === "-") return "PENDIENTE";
     const partes = fechaLimiteStr.split("/");
-    const fechaUTC = Date.UTC(partes[2], partes[1]-1, partes[0]);
+    if (partes.length < 3) return "PENDIENTE";
+    const fechaUTC = Date.UTC(parseInt(partes[2]), parseInt(partes[1])-1, parseInt(partes[0]));
+    if (isNaN(fechaUTC)) return "PENDIENTE";
+    
     const hoy = new Date();
     const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     const diff = Math.round((fechaUTC - hoyUTC) / (1000 * 60 * 60 * 24));
+    
     if (diff < 0) return "VENCIDO";
     if (diff === 0) return "VENCE HOY";
     return "FALTAN " + diff + " DÍAS";
 }
 
 let tabla;
+let globalData = [];
 
 $(document).ready(function() {
-    $.ajax({
-        url: "datos.csv?v=" + new Date().getTime(),
-        dataType: "text",
-        success: function(data, status, xhr) {
-            const parsed = Papa.parse(data, { header: true, skipEmptyLines: true });
-            const datos = parsed.data;
+    const parsed = Papa.parse(csvData, { header: true, skipEmptyLines: true });
+    const datos = parsed.data;
+    globalData = datos;
 
-            // Fecha de actualización
-            const header = xhr.getResponseHeader("Last-Modified");
-            if (header) { $("#ultima-actualizacion").text("Última actualización: " + new Date(header).toLocaleDateString('es-MX')); }
+    $("#ultima-actualizacion").text("Datos cargados: " + new Date().toLocaleDateString('es-MX'));
 
-            // --- Lógica de Conteo Detallada ---
-            let c = {
-                vencidosTotal: 0, vConIni: 0, vSinIni: 0,
-                vigentesTotal: 0, gConIni: 0, gSinIni: 0,
-                cumplidos: 0
-            };
+    // --- Lógica de Conteo Detallada ---
+    let c = {
+        vencidosTotal: 0, vConIni: 0, vSinIni: 0,
+        vigentesTotal: 0, gConIni: 0, gSinIni: 0,
+        cumplidos: 0
+    };
 
-            datos.forEach(d => {
-                const h = d["HECHO"].toLowerCase();
-                const v = calcularVencimiento(d["FECHA LÍMITE"]);
-                const tieneIni = (d["INICIATIVA LOCAL"] && d["INICIATIVA LOCAL"].toLowerCase() !== "no hay");
+    datos.forEach(d => {
+        const h = (d["HECHO"] || "").toLowerCase();
+        const v = calcularVencimiento(d["FECHA LÍMITE"]);
+        const ini = (d["INICIATIVA LOCAL"] && d["INICIATIVA LOCAL"].toLowerCase() !== "no hay");
 
-                if (h.includes("si") || h === "sí") {
-                    c.cumplidos++;
-                } else if (v === "VENCIDO") {
-                    c.vencidosTotal++;
-                    tieneIni ? c.vConIni++ : c.vSinIni++;
-                } else {
-                    c.vigentesTotal++;
-                    tieneIni ? c.gConIni++ : c.gSinIni++;
-                }
-            });
+        if (h.includes("si") || h === "sí") {
+            c.cumplidos++;
+        } else if (v === "VENCIDO") {
+            c.vencidosTotal++;
+            ini ? c.vConIni++ : c.vSinIni++;
+        } else {
+            c.vigentesTotal++;
+            ini ? c.gConIni++ : c.gSinIni++;
+        }
+    });
 
-            // Renderizado de Dashboard
-            $("#stats").html(`
-                <div class="stats-container">
-                    <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #e74c3c;">
-                        <span style="color:#e74c3c; font-weight:bold;">VENCIDOS</span>
-                        <span class="stat-number" style="color:#e74c3c;">${c.vencidosTotal}</span>
-                        <small>Haga clic para detalles</small>
-                        <div class="sub-stats">
-                            <div class="sub-item" onclick="filtrar('vencido-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${c.vConIni}</b></div>
-                            <div class="sub-item" onclick="filtrar('vencido-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${c.vSinIni}</b></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #3498db;">
-                        <span style="color:#3498db; font-weight:bold;">VIGENTES</span>
-                        <span class="stat-number" style="color:#3498db;">${c.vigentesTotal}</span>
-                        <small>Haga clic para detalles</small>
-                        <div class="sub-stats">
-                            <div class="sub-item" onclick="filtrar('vigente-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${c.gConIni}</b></div>
-                            <div class="sub-item" onclick="filtrar('vigente-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${c.gSinIni}</b></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card" style="border-top: 5px solid #27ae60; cursor:default;">
-                        <span style="color:#27ae60; font-weight:bold;">CUMPLIDOS</span>
-                        <span class="stat-number" style="color:#27ae60;">${c.cumplidos}</span>
-                        <small>Objetivo cumplido</small>
-                    </div>
+    // Renderizado de Dashboard
+    $("#stats").html(`
+        <div class="stats-container">
+            <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #e74c3c;">
+                <span style="color:#e74c3c; font-weight:bold;">VENCIDOS</span>
+                <span class="stat-number" style="color:#e74c3c;">${c.vencidosTotal}</span>
+                <small>Haga clic para detalles</small>
+                <div class="sub-stats">
+                    <div class="sub-item" onclick="filtrar('vencido-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${c.vConIni}</b></div>
+                    <div class="sub-item" onclick="filtrar('vencido-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${c.vSinIni}</b></div>
                 </div>
-            `);
+            </div>
 
-            tabla = $('#tabla').DataTable({
-                data: datos,
-                columns: [
-                    { data: "No" }, { data: "ORDENAMIENTO" }, { data: "MATERIA REFORMA" }, { data: "PUBLICACIÓN DOF" }, { data: "PLAZO PARA ARMONIZAR" }, { data: "FECHA LÍMITE" },
-                    {
-                        data: "FECHA LÍMITE",
-                        render: function(data, type, row) {
-                            const h = row.HECHO.toLowerCase();
-                            const v = calcularVencimiento(data);
-                            if (h.includes("si")) return `<span class="badge badge-green">Cumplido</span>`;
-                            if (v === "VENCIDO") return `<span class="badge badge-red">${v}</span>`;
-                            return `<span class="badge badge-gray">${v}</span>`;
-                        }
-                    },
-                    { data: "HECHO", render: d => d.toLowerCase().includes("dictamen") ? '● Dictamen' : (d.toLowerCase().includes("si") ? '✔' : 'No') },
-                    { data: "ENLACE DECRETO", render: d => `<a href="${d}" target="_blank">📄</a>` },
-                    { data: "INICIATIVA LOCAL", render: d => (d && d.toLowerCase() !== "no hay") ? `<a href="${d}" target="_blank">📂 Ver</a>` : '-' }
-                ],
-                language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" }
-            });
+            <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #3498db;">
+                <span style="color:#3498db; font-weight:bold;">VIGENTES</span>
+                <span class="stat-number" style="color:#3498db;">${c.vigentesTotal}</span>
+                <small>Haga clic para detalles</small>
+                <div class="sub-stats">
+                    <div class="sub-item" onclick="filtrar('vigente-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${c.gConIni}</b></div>
+                    <div class="sub-item" onclick="filtrar('vigente-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${c.gSinIni}</b></div>
+                </div>
+            </div>
+
+            <div class="stat-card" style="border-top: 5px solid #27ae60; cursor:default;">
+                <span style="color:#27ae60; font-weight:bold;">CUMPLIDOS</span>
+                <span class="stat-number" style="color:#27ae60;">${c.cumplidos}</span>
+                <small>Objetivo cumplido</small>
+            </div>
+        </div>
+    `);
+
+    tabla = $('#tabla').DataTable({
+        data: datos,
+        columns: [
+            { data: "No" },
+            { data: "ORDENAMIENTO" },
+            { data: "MATERIA REFORMA" },
+            { data: "PUBLICACIÓN DOF" },
+            { data: "PLAZO PARA ARMONIZAR" },
+            { data: "FECHA LÍMITE" },
+            {
+                data: "FECHA LÍMITE",
+                render: function(data, type, row) {
+                    const h = (row.HECHO || "").toLowerCase();
+                    const v = calcularVencimiento(data);
+                    if (h.includes("si")) return `<span class="badge badge-green">Cumplido</span>`;
+                    if (v === "VENCIDO") return `<span class="badge badge-red">${v}</span>`;
+                    return `<span class="badge badge-gray">${v}</span>`;
+                }
+            },
+            { 
+                data: "HECHO", 
+                render: function(d) {
+                    if (!d) return '';
+                    const lowerD = d.toLowerCase();
+                    if (lowerD.includes("dictamen")) return '● Dictamen';
+                    if (lowerD.includes("si")) return '✔';
+                    return 'No';
+                }
+            },
+            { 
+                data: "ENLACE DECRETO", 
+                render: function(d) {
+                    return (d && d.toLowerCase() !== "no hay") ? `<a href="${d}" target="_blank">📄</a>` : '-';
+                }
+            },
+            { 
+                data: "INICIATIVA LOCAL", 
+                render: function(d) {
+                    return (d && d.toLowerCase() !== "no hay") ? `<a href="${d}" target="_blank">📂 Ver</a>` : '-';
+                }
+            }
+        ],
+        language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
+        initComplete: function() {
+            $("#loading").fadeOut(500);
         }
     });
 });
@@ -192,10 +252,10 @@ function filtrar(tipo) {
 
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
         const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
-        const h = rowData["HECHO"].toLowerCase();
+        const h = (rowData["HECHO"] || "").toLowerCase();
         const ini = (rowData["INICIATIVA LOCAL"] && rowData["INICIATIVA LOCAL"].toLowerCase() !== "no hay");
 
-        if (h.includes("si")) return false; // Excluir cumplidos de estos filtros
+        if (h.includes("si")) return false;
 
         if (tipo === 'vencido-con') return (v === "VENCIDO" && ini);
         if (tipo === 'vencido-sin') return (v === "VENCIDO" && !ini);
@@ -210,6 +270,138 @@ $('#limpiarFiltro').click(function() {
     while($.fn.dataTable.ext.search.length > 0) { $.fn.dataTable.ext.search.pop(); }
     tabla.draw();
 });
+
+// --- Exportar a PDF ---
+$('#btnExportarPDF').click(function() {
+    if (!tabla || tabla.rows().count() === 0) {
+        alert('No hay datos cargados para exportar.');
+        return;
+    }
+
+    const filasFiltradas = tabla.rows({ search: 'applied', filter: 'applied' }).data();
+    if (filasFiltradas.length === 0) {
+        alert('No hay registros pendientes visibles para exportar.');
+        return;
+    }
+
+    const bodyRows = [];
+    filasFiltradas.each(function(fila) {
+        const v = calcularVencimiento(fila["FECHA LÍMITE"]);
+        const h = (fila["HECHO"] || "").toLowerCase();
+        const ini = (fila["INICIATIVA LOCAL"] && fila["INICIATIVA LOCAL"].toLowerCase() !== "no hay") ? "Sí" : "No";
+        const hechoTexto = h.includes("dictamen") ? 'Dictamen' : (h.includes("si") ? 'Sí' : 'No');
+        const decretoTexto = (fila["ENLACE DECRETO"] && fila["ENLACE DECRETO"].toLowerCase() !== "no hay") ? 'Disponible' : '-';
+
+        let estado = 'Pendiente';
+        if (h.includes("si") || h === "sí") {
+            estado = 'Cumplido';
+        } else if (v === "VENCIDO") {
+            estado = 'VENCIDO';
+        } else if (v === "VENCE HOY") {
+            estado = 'VENCE HOY';
+        } else if (v === "PENDIENTE") {
+            estado = 'Sin Fecha';
+        } else {
+            estado = v;
+        }
+
+        bodyRows.push([
+            fila["No"],
+            fila["ORDENAMIENTO"],
+            fila["MATERIA REFORMA"],
+            fila["PUBLICACIÓN DOF"],
+            fila["PLAZO PARA ARMONIZAR"],
+            fila["FECHA LÍMITE"],
+            estado,
+            hechoTexto,
+            decretoTexto,
+            ini
+        ]);
+    });
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape', 'mm', 'letter');
+
+    doc.setFontSize(16);
+    doc.setTextColor(44, 62, 80);
+    doc.text('Portal de Obligaciones de Armonización Legislativa', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('Reporte de Pendientes', 14, 22);
+
+    doc.setFontSize(8);
+    const hoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    doc.text('Generado el: ' + hoy + '  |  Registros: ' + bodyRows.length, 14, 27);
+
+    doc.autoTable({
+        startY: 32,
+        head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', 'Iniciativa']],
+        body: bodyRows,
+        theme: 'grid',
+        styles: {
+            fontSize: 7,
+            cellPadding: 2,
+            lineColor: [200, 200, 200],
+            lineWidth: 0.2,
+            valign: 'middle'
+        },
+        headStyles: {
+            fillColor: [52, 73, 94],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 7.5,
+            halign: 'center'
+        },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            5: { cellWidth: 25, halign: 'center' },
+            6: { halign: 'center', fontStyle: 'bold', cellWidth: 25 },
+            7: { cellWidth: 20, halign: 'center' },
+            8: { cellWidth: 20, halign: 'center' },
+            9: { cellWidth: 20, halign: 'center' }
+        },
+        didParseCell: function(pdfData) {
+            if (pdfData.row.index !== undefined && pdfData.column.index === 6) {
+                const estado = pdfData.cell.raw;
+                if (estado === 'VENCIDO') {
+                    pdfData.cell.styles.textColor = [198, 40, 40];
+                    pdfData.cell.styles.fillColor = [255, 235, 238];
+                } else if (estado === 'Cumplido') {
+                    pdfData.cell.styles.textColor = [46, 125, 50];
+                    pdfData.cell.styles.fillColor = [232, 245, 233];
+                } else if (estado === 'VENCE HOY') {
+                    pdfData.cell.styles.textColor = [239, 108, 0];
+                    pdfData.cell.styles.fillColor = [255, 243, 224];
+                } else if (estado === 'Sin Fecha') {
+                    pdfData.cell.styles.textColor = [150, 150, 150];
+                }
+            }
+            if (pdfData.row.index !== undefined) {
+                if ([0, 6, 7, 8, 9].includes(pdfData.column.index)) {
+                    pdfData.cell.styles.halign = 'center';
+                }
+            }
+        },
+        margin: { left: 14, right: 14, top: 14, bottom: 14 }
+    });
+
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= totalPaginas; pg++) {
+        doc.setPage(pg);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('Página ' + pg + ' de ' + totalPaginas, doc.internal.pageSize.getWidth() - 35, doc.internal.pageSize.getHeight() - 8);
+    }
+
+    const nombreArchivo = 'Pendientes_Armonizacion_' + new Date().toISOString().slice(0, 10) + '.pdf';
+    doc.save(nombreArchivo);
+
+    const msg = $('#pdfMsg');
+    msg.text('✅ PDF exportado correctamente').show();
+    setTimeout(function() { msg.fadeOut(2000); }, 3000);
+});
 </script>
 </body>
 </html>
+
