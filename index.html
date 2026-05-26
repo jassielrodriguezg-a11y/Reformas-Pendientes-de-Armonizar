@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal de Armonización Legislativa</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
@@ -47,6 +48,7 @@
         .badge-orange { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffcc80; }
         .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .badge-gray { background-color: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
+        .badge-blue { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
 
         .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
         button { padding: 8px 16px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: 500; transition: opacity 0.2s; }
@@ -108,14 +110,13 @@
 <script>
 // ============================================================================
 // ⚙️ CONFIGURACIÓN: ACTUALIZA ESTA URL CON LA DE TU ARCHIVO CSV EN GITHUB
+// Usa la URL "raw", NO la URL de la página web del repositorio.
+// Ejemplo: https://raw.githubusercontent.com/usuario/repo/main/archivo.csv
 // ============================================================================
-// Usa la URL "raw" de GitHub, NO la URL de la página web.
-// Ejemplo: https://raw.githubusercontent.com/tu-usuario/tu-repo/main/tu-archivo.csv
 const CSV_URL = 'https://raw.githubusercontent.com/jassielrodriguezg-a11y/Reformas-Pendientes-de-Armonizar/refs/heads/main/datos.csv';
-// ============================================================================
 
 // ============================================================================
-// ✅ FUNCIÓN PARA NORMALIZAR TEXTO (maneja acentos: "Sí" → "si")
+// ✅ FUNCIÓN PARA NORMALIZAR TEXTO (maneja acentos, mayúsculas y espacios)
 // ============================================================================
 function normalizarTexto(texto) {
     return (texto || "")
@@ -148,19 +149,15 @@ function calcularVencimiento(fechaLimiteStr) {
 }
 
 // ============================================================================
-// 📊 FUNCIÓN PARA CONTAR ESTADÍSTICAS (usa normalizarTexto)
+// 📊 FUNCIÓN PARA CONTAR ESTADÍSTICAS
 // ============================================================================
 function calcularEstadisticas(datos) {
-    let c = {
-        vencidosTotal: 0, vConIni: 0, vSinIni: 0,
-        vigentesTotal: 0, gConIni: 0, gSinIni: 0,
-        cumplidos: 0
-    };
+    let c = { vencidosTotal: 0, vConIni: 0, vSinIni: 0, vigentesTotal: 0, gConIni: 0, gSinIni: 0, cumplidos: 0 };
 
     datos.forEach(d => {
         const h = normalizarTexto(d["HECHO"]);
         const v = calcularVencimiento(d["FECHA LÍMITE"]);
-        const ini = (d["INICIATIVA LOCAL"] && d["INICIATIVA LOCAL"].toString().toLowerCase() !== "no hay");
+        const ini = (d["INICIATIVA LOCAL"] && d["INICIATIVA LOCAL"].toString().trim().toLowerCase() !== "no hay");
 
         if (h.includes("si")) {
             c.cumplidos++;
@@ -172,7 +169,6 @@ function calcularEstadisticas(datos) {
             ini ? c.gConIni++ : c.gSinIni++;
         }
     });
-    
     return c;
 }
 
@@ -215,11 +211,9 @@ function renderizarDashboard(stats) {
 // 🗂️ FUNCIÓN PARA INICIALIZAR LA TABLA DATATABLES
 // ============================================================================
 function inicializarTabla(datos) {
-    // Calcular y renderizar estadísticas
     const stats = calcularEstadisticas(datos);
     renderizarDashboard(stats);
 
-    // Inicializar DataTable
     return $('#tabla').DataTable({
         data: datos,
         columns: [
@@ -232,21 +226,24 @@ function inicializarTabla(datos) {
             {
                 data: "FECHA LÍMITE",
                 render: function(data, type, row) {
-                    const h = normalizarTexto(row.HECHO); // ✅ Usa normalización
+                    const h = normalizarTexto(row.HECHO);
                     const v = calcularVencimiento(data);
-                    
                     if (h.includes("si")) return `<span class="badge badge-green">Cumplido</span>`;
                     if (v === "VENCIDO") return `<span class="badge badge-red">${v}</span>`;
                     return `<span class="badge badge-gray">${v}</span>`;
                 }
             },
             { 
+                // ✅ COLUMNA "HECHO" ACTUALIZADA
                 data: "HECHO", 
-                render: function(d) {
-                    if (!d) return '';
-                    const lowerD = normalizarTexto(d); // ✅ Usa normalización
-                    if (lowerD.includes("dictamen")) return '● Dictamen';
-                    if (lowerD.includes("si")) return '✔';
+                render: function(data, type, row) {
+                    const h = normalizarTexto(data || "");
+                    if (h.includes("si")) return '✔';
+                    
+                    const ini = row["INICIATIVA LOCAL"];
+                    if (ini && ini.toString().trim().toLowerCase() !== "no hay") {
+                        return '📋 En Estudio';
+                    }
                     return 'No';
                 }
             },
@@ -265,23 +262,22 @@ function inicializarTabla(datos) {
         ],
         language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
         pageLength: 25,
-        order: [[0, 'asc']]
+        order: [[0, 'asc']],
+        initComplete: function() { $("#loading").fadeOut(500); }
     });
 }
 
 // ============================================================================
-// 🔍 FUNCIÓN DE FILTRADO (usa normalizarTexto)
+// 🔍 FUNCIÓN DE FILTRADO
 // ============================================================================
 function filtrar(tipo) {
-    // Limpiar filtros previos
     while($.fn.dataTable.ext.search.length > 0) { $.fn.dataTable.ext.search.pop(); }
 
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
         const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
-        const h = normalizarTexto(rowData["HECHO"]); // ✅ Usa normalización
-        const ini = (rowData["INICIATIVA LOCAL"] && rowData["INICIATIVA LOCAL"].toString().toLowerCase() !== "no hay");
+        const h = normalizarTexto(rowData["HECHO"]);
+        const ini = (rowData["INICIATIVA LOCAL"] && rowData["INICIATIVA LOCAL"].toString().trim().toLowerCase() !== "no hay");
 
-        // Excluir cumplidos en filtros de pendientes
         if (h.includes("si")) return false;
 
         if (tipo === 'vencido-con') return (v === "VENCIDO" && ini);
@@ -291,13 +287,11 @@ function filtrar(tipo) {
         return true;
     });
     
-    if (typeof tabla !== 'undefined' && tabla) {
-        tabla.draw();
-    }
+    if (typeof tabla !== 'undefined' && tabla) tabla.draw();
 }
 
 // ============================================================================
-// 📄 FUNCIÓN PARA EXPORTAR A PDF (usa normalizarTexto)
+// 📄 FUNCIÓN PARA EXPORTAR A PDF
 // ============================================================================
 function exportarPDF(tabla) {
     if (!tabla || tabla.rows().count() === 0) {
@@ -314,49 +308,39 @@ function exportarPDF(tabla) {
     const bodyRows = [];
     filasFiltradas.each(function(fila) {
         const v = calcularVencimiento(fila["FECHA LÍMITE"]);
-        const h = normalizarTexto(fila["HECHO"]); // ✅ Usa normalización
-        const ini = (fila["INICIATIVA LOCAL"] && fila["INICIATIVA LOCAL"].toString().toLowerCase() !== "no hay") ? "Sí" : "No";
-        const hechoTexto = h.includes("dictamen") ? 'Dictamen' : (h.includes("si") ? 'Sí' : 'No');
+        const h = normalizarTexto(fila["HECHO"]);
+        const iniRaw = fila["INICIATIVA LOCAL"];
+        const hayIniciativa = iniRaw && iniRaw.toString().trim().toLowerCase() !== "no hay";
+        
+        let hechoTexto;
+        if (h.includes("si")) hechoTexto = 'Sí';
+        else if (hayIniciativa) hechoTexto = 'En Estudio';
+        else hechoTexto = 'No';
+
         const decretoTexto = (fila["ENLACE DECRETO"] && fila["ENLACE DECRETO"].toString().toLowerCase() !== "no hay") ? 'Disponible' : '-';
+        const iniTexto = hayIniciativa ? "Sí" : "No";
 
         let estado = 'Pendiente';
-        if (h.includes("si")) {
-            estado = 'Cumplido';
-        } else if (v === "VENCIDO") {
-            estado = 'VENCIDO';
-        } else if (v === "VENCE HOY") {
-            estado = 'VENCE HOY';
-        } else if (v === "PENDIENTE") {
-            estado = 'Sin Fecha';
-        } else {
-            estado = v;
-        }
+        if (h.includes("si")) estado = 'Cumplido';
+        else if (v === "VENCIDO") estado = 'VENCIDO';
+        else if (v === "VENCE HOY") estado = 'VENCE HOY';
+        else if (v === "PENDIENTE") estado = 'Sin Fecha';
+        else estado = v;
 
         bodyRows.push([
-            fila["No"],
-            fila["ORDENAMIENTO"],
-            fila["MATERIA REFORMA"],
-            fila["PUBLICACIÓN DOF"],
-            fila["PLAZO PARA ARMONIZAR"],
-            fila["FECHA LÍMITE"],
-            estado,
-            hechoTexto,
-            decretoTexto,
-            ini
+            fila["No"], fila["ORDENAMIENTO"], fila["MATERIA REFORMA"],
+            fila["PUBLICACIÓN DOF"], fila["PLAZO PARA ARMONIZAR"], fila["FECHA LÍMITE"],
+            estado, hechoTexto, decretoTexto, iniTexto
         ]);
     });
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape', 'mm', 'letter');
 
-    doc.setFontSize(16);
-    doc.setTextColor(44, 62, 80);
+    doc.setFontSize(16); doc.setTextColor(44, 62, 80);
     doc.text('Portal de Obligaciones de Armonización Legislativa', 14, 15);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
+    doc.setFontSize(10); doc.setTextColor(100);
     doc.text('Reporte de Pendientes', 14, 22);
-
     doc.setFontSize(8);
     const hoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
     doc.text('Generado el: ' + hoy + '  |  Registros: ' + bodyRows.length, 14, 27);
@@ -366,48 +350,23 @@ function exportarPDF(tabla) {
         head: [['No', 'Ordenamiento', 'Materia', 'Publicación DOF', 'Plazo', 'Fecha Límite', 'Estado', 'Hecho', 'Decreto', 'Iniciativa local']],
         body: bodyRows,
         theme: 'grid',
-        styles: {
-            fontSize: 7,
-            cellPadding: 2,
-            lineColor: [200, 200, 200],
-            lineWidth: 0.2,
-            valign: 'middle'
-        },
-        headStyles: {
-            fillColor: [52, 73, 94],
-            textColor: 255,
-            fontStyle: 'bold',
-            fontSize: 7.5,
-            halign: 'center'
-        },
+        styles: { fontSize: 7, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.2, valign: 'middle' },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
         columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            5: { cellWidth: 25, halign: 'center' },
-            6: { halign: 'center', fontStyle: 'bold', cellWidth: 25 },
-            7: { cellWidth: 20, halign: 'center' },
-            8: { cellWidth: 20, halign: 'center' },
-            9: { cellWidth: 20, halign: 'center' }
+            0: { cellWidth: 10, halign: 'center' }, 5: { cellWidth: 25, halign: 'center' },
+            6: { halign: 'center', fontStyle: 'bold', cellWidth: 25 }, 7: { cellWidth: 20, halign: 'center' },
+            8: { cellWidth: 20, halign: 'center' }, 9: { cellWidth: 20, halign: 'center' }
         },
         didParseCell: function(pdfData) {
             if (pdfData.row.index !== undefined && pdfData.column.index === 6) {
                 const estado = pdfData.cell.raw;
-                if (estado === 'VENCIDO') {
-                    pdfData.cell.styles.textColor = [198, 40, 40];
-                    pdfData.cell.styles.fillColor = [255, 235, 238];
-                } else if (estado === 'Cumplido') {
-                    pdfData.cell.styles.textColor = [46, 125, 50];
-                    pdfData.cell.styles.fillColor = [232, 245, 233];
-                } else if (estado === 'VENCE HOY') {
-                    pdfData.cell.styles.textColor = [239, 108, 0];
-                    pdfData.cell.styles.fillColor = [255, 243, 224];
-                } else if (estado === 'Sin Fecha') {
-                    pdfData.cell.styles.textColor = [150, 150, 150];
-                }
+                if (estado === 'VENCIDO') { pdfData.cell.styles.textColor = [198, 40, 40]; pdfData.cell.styles.fillColor = [255, 235, 238]; }
+                else if (estado === 'Cumplido') { pdfData.cell.styles.textColor = [46, 125, 50]; pdfData.cell.styles.fillColor = [232, 245, 233]; }
+                else if (estado === 'VENCE HOY') { pdfData.cell.styles.textColor = [239, 108, 0]; pdfData.cell.styles.fillColor = [255, 243, 224]; }
+                else if (estado === 'Sin Fecha') { pdfData.cell.styles.textColor = [150, 150, 150]; }
             }
-            if (pdfData.row.index !== undefined) {
-                if ([0, 6, 7, 8, 9].includes(pdfData.column.index)) {
-                    pdfData.cell.styles.halign = 'center';
-                }
+            if (pdfData.row.index !== undefined && [0, 6, 7, 8, 9].includes(pdfData.column.index)) {
+                pdfData.cell.styles.halign = 'center';
             }
         },
         margin: { left: 14, right: 14, top: 14, bottom: 14 }
@@ -415,9 +374,7 @@ function exportarPDF(tabla) {
 
     const totalPaginas = doc.internal.getNumberOfPages();
     for (let pg = 1; pg <= totalPaginas; pg++) {
-        doc.setPage(pg);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
+        doc.setPage(pg); doc.setFontSize(8); doc.setTextColor(150);
         doc.text('Página ' + pg + ' de ' + totalPaginas, doc.internal.pageSize.getWidth() - 35, doc.internal.pageSize.getHeight() - 8);
     }
 
@@ -436,68 +393,45 @@ let tabla;
 let globalData = [];
 
 $(document).ready(function() {
-    // Actualizar fecha de carga
     $("#ultima-actualizacion").text("Última actualización: " + new Date().toLocaleDateString('es-MX', {
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     }));
 
-    // Cargar CSV desde GitHub usando PapaParse
     Papa.parse(CSV_URL, {
         download: true,
         header: true,
         skipEmptyLines: true,
         dynamicTyping: false,
-        
-        beforeDownload: function(url) {
-            $("#loadingStatus").text("Descargando archivo...");
-            return url;
-        },
-        
+        beforeDownload: function() { $("#loadingStatus").text("Descargando archivo..."); },
         complete: function(results) {
-            if (results.errors && results.errors.length > 0) {
-                console.warn("Advertencias en la carga CSV:", results.errors);
-            }
-            
             globalData = results.data.filter(row => row && Object.keys(row).length > 1);
-            
             if (globalData.length === 0) {
                 $("#errorMsg").text("⚠️ El archivo CSV está vacío o no tiene el formato esperado.").show();
                 $("#loading").fadeOut(300);
                 return;
             }
-            
             tabla = inicializarTabla(globalData);
-            $("#loading").fadeOut(500);
-            
-            // Configurar botones después de cargar la tabla
             configurarEventos();
         },
-        
         error: function(err) {
             console.error("Error cargando CSV:", err);
             $("#errorMsg").html(`
                 ❌ <strong>Error al cargar los datos:</strong><br>
-                <small>${err.message || 'Verifica que la URL del CSV sea correcta y que el archivo sea público.'}</small><br><br>
-                <strong>Solución:</strong> Asegúrate de usar la URL "raw" de GitHub:<br>
-                <code>https://raw.githubusercontent.com/usuario/repositorio/rama/archivo.csv</code>
+                <small>${err.message || 'Verifica la URL y permisos del archivo.'}</small><br>
+                <strong>Nota:</strong> Usa la URL <code>raw.githubusercontent.com/...</code> de un repositorio público.
             `).show();
             $("#loading").fadeOut(300);
         }
     });
 });
 
-// ============================================================================
-// ⚡ CONFIGURAR EVENTOS DE BOTONES
-// ============================================================================
 function configurarEventos() {
     $('#limpiarFiltro').click(function() {
         while($.fn.dataTable.ext.search.length > 0) { $.fn.dataTable.ext.search.pop(); }
         if (tabla) tabla.draw();
     });
 
-    $('#btnExportarPDF').click(function() {
-        exportarPDF(tabla);
-    });
+    $('#btnExportarPDF').click(function() { exportarPDF(tabla); });
 }
 </script>
 </body>
