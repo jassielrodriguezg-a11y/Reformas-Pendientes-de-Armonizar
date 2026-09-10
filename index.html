@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portal de Armonización Legislativa</title>
+    <title>Obligaciones de Armonización Legislativa</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -68,7 +68,7 @@
 </div>
 
 <div class="container">
-    <h2>Portal de Obligaciones de Armonización Legislativa</h2>
+    <h2>Obligaciones de Armonización Legislativa</h2>
     <div id="ultima-actualizacion">Consultando fecha de última actualización...</div>
     <div id="errorMsg"></div>
     <div id="stats"></div>
@@ -315,7 +315,7 @@ function exportarPDF(tabla) {
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape', 'mm', 'letter');
-    doc.setFontSize(16).setTextColor(44,62,80).text('Portal de Obligaciones de Armonización Legislativa', 14, 15);
+    doc.setFontSize(16).setTextColor(44,62,80).text('Obligaciones de Armonización Legislativa', 14, 15);
     doc.setFontSize(10).setTextColor(100).text('Reporte de Pendientes', 14, 22);
     doc.setFontSize(8);
     const hoy = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric' });
