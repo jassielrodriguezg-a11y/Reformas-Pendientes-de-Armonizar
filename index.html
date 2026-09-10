@@ -283,8 +283,9 @@ function exportarPDF(tabla) {
         const iniTexto = ini.existe ? (ini.urls.length > 1 ? `${ini.urls.length} iniciativas` : "Sí") : "No";
         let estado = v === "VENCIDO" ? 'VENCIDO' : v === "VENCE HOY" ? 'VENCE HOY' : v === "PENDIENTE" ? 'Sin Fecha' : v;
 
+        // ✅ Numeración consecutiva automática (1, 2, 3... N)
         bodyRows.push([
-            fila["No"], fila["ORDENAMIENTO"], fila["MATERIA REFORMA"], 
+            bodyRows.length + 1, fila["ORDENAMIENTO"], fila["MATERIA REFORMA"], 
             fila["PUBLICACIÓN DOF"], fila["PLAZO PARA ARMONIZAR"], fila["FECHA LÍMITE"], 
             estado, iniTexto, hechoTexto
         ]);
