@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Obligaciones de Armonización Legislativa</title>
+    <title>Portal de Armonización Legislativa</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -29,7 +29,17 @@
         .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
         .badge-gray { background-color: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
 
-        .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .controls { margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        
+        /* Estilo nuevo para el checkbox */
+        .toggle-cumplidos { 
+            display: flex; align-items: center; gap: 8px; cursor: pointer; 
+            font-weight: 600; color: #2c3e50; background: #e8f4f8; padding: 8px 14px; 
+            border-radius: 6px; border: 1px solid #bee5eb; transition: background 0.2s;
+        }
+        .toggle-cumplidos:hover { background: #d1ecf1; }
+        .toggle-cumplidos input { width: 18px; height: 18px; cursor: pointer; accent-color: #2980b9; }
+
         button { padding: 8px 16px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: 500; transition: opacity 0.2s; }
         button:hover { opacity: 0.85; }
         .btn-gray { background: #7f8c8d; }
@@ -59,13 +69,17 @@
 </div>
 
 <div class="container">
-    <h2>Obligaciones de Armonización Legislativa</h2>
+    <h2>Portal de Obligaciones de Armonización Legislativa</h2>
     <div id="ultima-actualizacion">Cargando fecha...</div>
     <div id="errorMsg"></div>
     <div id="stats"></div>
 
     <div class="controls">
-        <button id="limpiarFiltro" class="btn-gray">Ver Todo el Listado</button>
+        <label class="toggle-cumplidos">
+            <input type="checkbox" id="chkOcultarCumplidos" checked>
+            Ocultar cumplidos (Ver solo pendientes)
+        </label>
+        <button id="limpiarFiltroCategoria" class="btn-gray">Limpiar Filtros de Tarjetas</button>
         <button id="btnExportarPDF" class="btn-pdf">📄 Exportar Pendientes en PDF</button>
         <span id="pdfMsg"></span>
     </div>
@@ -82,6 +96,11 @@
 
 <script>
 const CSV_URL = 'https://raw.githubusercontent.com/jassielrodriguezg-a11y/Reformas-Pendientes-de-Armonizar/refs/heads/main/datos.csv';
+
+// 🧠 Estado global de filtros
+let tabla;
+let filtroActivo = 'todos'; // 'todos', 'vencido-con', 'vencido-sin', 'vigente-con', 'vigente-sin'
+let ocultarCumplidos = true;
 
 function normalizarTexto(texto) {
     return (texto || "").toString().toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -125,19 +144,19 @@ function calcularEstadisticas(datos) {
 function renderizarDashboard(stats) {
     $("#stats").html(`
         <div class="stats-container">
-            <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #e74c3c;">
+            <div class="stat-card" onclick="filtrar('vencido-con')" style="border-top: 5px solid #e74c3c;">
                 <span style="color:#e74c3c; font-weight:bold;">VENCIDOS</span>
                 <span class="stat-number" style="color:#e74c3c;">${stats.vencidosTotal}</span>
-                <small>Haga clic para detalles</small>
+                <small>Haga clic para ver detalles</small>
                 <div class="sub-stats">
                     <div class="sub-item" onclick="filtrar('vencido-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${stats.vConIni}</b></div>
                     <div class="sub-item" onclick="filtrar('vencido-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${stats.vSinIni}</b></div>
                 </div>
             </div>
-            <div class="stat-card" onclick="$(this).find('.sub-stats').slideToggle()" style="border-top: 5px solid #3498db;">
+            <div class="stat-card" onclick="filtrar('vigente-con')" style="border-top: 5px solid #3498db;">
                 <span style="color:#3498db; font-weight:bold;">VIGENTES</span>
                 <span class="stat-number" style="color:#3498db;">${stats.vigentesTotal}</span>
-                <small>Haga clic para detalles</small>
+                <small>Haga clic para ver detalles</small>
                 <div class="sub-stats">
                     <div class="sub-item" onclick="filtrar('vigente-con'); event.stopPropagation();"><span>Con iniciativa:</span> <b>${stats.gConIni}</b></div>
                     <div class="sub-item" onclick="filtrar('vigente-sin'); event.stopPropagation();"><span>Sin iniciativa:</span> <b>${stats.gSinIni}</b></div>
@@ -152,9 +171,44 @@ function renderizarDashboard(stats) {
     `);
 }
 
+// 🎯 Motor de filtrado unificado
+function aplicarFiltros() {
+    // 1. Limpiar filtros anteriores de DataTables
+    while($.fn.dataTable.ext.search.length) $.fn.dataTable.ext.search.pop();
+    
+    // 2. Insertar nueva regla de filtrado
+    $.fn.dataTable.ext.search.push((settings, rowData, rowIndex) => {
+        const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
+        const h = normalizarTexto(rowData["HECHO"]);
+        const ini = obtenerIniciativas(rowData["INICIATIVA LOCAL"]).existe;
+        const esCumplido = h.includes("si");
+
+        // Regla A: Si el checkbox está activo, ocultar cumplidos
+        if (ocultarCumplidos && esCumplido) return false;
+
+        // Regla B: Filtros de categorías (tarjetas)
+        if (filtroActivo === 'vencido-con') return v === "VENCIDO" && ini;
+        if (filtroActivo === 'vencido-sin') return v === "VENCIDO" && !ini;
+        if (filtroActivo === 'vigente-con') return v !== "VENCIDO" && ini;
+        if (filtroActivo === 'vigente-sin') return v !== "VENCIDO" && !ini;
+        
+        // Si es 'todos', pasa la Regla A y llega aquí -> true
+        return true;
+    });
+    
+    // 3. Redibujar la tabla
+    if (tabla) tabla.draw();
+}
+
+function filtrar(tipo) {
+    filtroActivo = tipo;
+    aplicarFiltros();
+}
+
 function inicializarTabla(datos) {
     renderizarDashboard(calcularEstadisticas(datos));
-    return $('#tabla').DataTable({
+    
+    const dt = $('#tabla').DataTable({
         data: datos,
         columns: [
             { data: "No" }, 
@@ -205,30 +259,19 @@ function inicializarTabla(datos) {
         ],
         language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
         pageLength: 25, order: [[0, 'asc']],
-        initComplete: () => $("#loading").fadeOut(500)
+        initComplete: () => {
+            $("#loading").fadeOut(500);
+            // 🚀 Aplicar filtro de "Ocultar cumplidos" por defecto al cargar
+            aplicarFiltros();
+        }
     });
-}
-
-function filtrar(tipo) {
-    while($.fn.dataTable.ext.search.length) $.fn.dataTable.ext.search.pop();
-    $.fn.dataTable.ext.search.push((_, __, ___, rowData) => {
-        const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
-        const h = normalizarTexto(rowData["HECHO"]);
-        const ini = obtenerIniciativas(rowData["INICIATIVA LOCAL"]).existe;
-        if (h.includes("si")) return false;
-        if (tipo === 'vencido-con') return v === "VENCIDO" && ini;
-        if (tipo === 'vencido-sin') return v === "VENCIDO" && !ini;
-        if (tipo === 'vigente-con') return v !== "VENCIDO" && ini;
-        if (tipo === 'vigente-sin') return v !== "VENCIDO" && !ini;
-        return true;
-    });
-    if (tabla) tabla.draw();
+    return dt;
 }
 
 function exportarPDF(tabla) {
     if (!tabla || tabla.rows().count() === 0) return alert('No hay datos cargados.');
     
-    // ✅ MEJORA: Filtrar solo los NO cumplidos para el reporte de "Pendientes"
+    // ✅ Filtrar solo los NO cumplidos para el reporte, sin importar lo que se vea en pantalla
     const filas = tabla.rows({ search: 'applied', filter: 'applied' }).data().filter(fila => {
         return !normalizarTexto(fila["HECHO"]).includes("si");
     });
@@ -249,23 +292,16 @@ function exportarPDF(tabla) {
         const iniTexto = ini.existe ? (ini.urls.length > 1 ? `${ini.urls.length} iniciativas` : "Sí") : "No";
         let estado = v === "VENCIDO" ? 'VENCIDO' : v === "VENCE HOY" ? 'VENCE HOY' : v === "PENDIENTE" ? 'Sin Fecha' : v;
 
-        // ✅ Columna "Decreto" eliminada de la exportación (ahora son 9 columnas)
         bodyRows.push([
-            fila["No"], 
-            fila["ORDENAMIENTO"], 
-            fila["MATERIA REFORMA"], 
-            fila["PUBLICACIÓN DOF"], 
-            fila["PLAZO PARA ARMONIZAR"], 
-            fila["FECHA LÍMITE"], 
-            estado, 
-            hechoTexto, 
-            iniTexto
+            fila["No"], fila["ORDENAMIENTO"], fila["MATERIA REFORMA"], 
+            fila["PUBLICACIÓN DOF"], fila["PLAZO PARA ARMONIZAR"], fila["FECHA LÍMITE"], 
+            estado, hechoTexto, iniTexto
         ]);
     });
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape', 'mm', 'letter');
-    doc.setFontSize(16).setTextColor(44,62,80).text('Obligaciones de Armonización Legislativa', 14, 15);
+    doc.setFontSize(16).setTextColor(44,62,80).text('Portal de Obligaciones de Armonización Legislativa', 14, 15);
     doc.setFontSize(10).setTextColor(100).text('Reporte de Pendientes', 14, 22);
     doc.setFontSize(8);
     const hoy = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric' });
@@ -277,20 +313,14 @@ function exportarPDF(tabla) {
         body: bodyRows, theme: 'grid',
         styles: { fontSize:7, cellPadding:2, lineColor:[200,200,200], lineWidth:0.2, valign:'middle' },
         headStyles: { fillColor:[52,73,94], textColor:255, fontStyle:'bold', fontSize:7.5, halign:'center' },
-        // ✅ Índices actualizados (la columna Decreto ya no existe)
         columnStyles: { 
-            0:{cellWidth:10,halign:'center'}, 
-            5:{cellWidth:25,halign:'center'}, 
-            6:{halign:'center',fontStyle:'bold',cellWidth:25}, 
-            7:{cellWidth:20,halign:'center'}, 
-            8:{cellWidth:25,halign:'center'} 
+            0:{cellWidth:10,halign:'center'}, 5:{cellWidth:25,halign:'center'}, 
+            6:{halign:'center',fontStyle:'bold',cellWidth:25}, 7:{cellWidth:20,halign:'center'}, 8:{cellWidth:25,halign:'center'} 
         },
         didParseCell: data => {
-            // ✅ Índice 6 es ahora "Estado" (antes era 6, pero al quitar Decreto, Iniciativa pasó a ser 8)
             if (data.row.index !== undefined && data.column.index === 6) {
                 const e = data.cell.raw;
                 if (e==='VENCIDO') { data.cell.styles.textColor=[198,40,40]; data.cell.styles.fillColor=[255,235,238]; }
-                else if (e==='Cumplido') { data.cell.styles.textColor=[46,125,50]; data.cell.styles.fillColor=[232,245,233]; }
                 else if (e==='VENCE HOY') { data.cell.styles.textColor=[239,108,0]; data.cell.styles.fillColor=[255,243,224]; }
             }
             if (data.row.index !== undefined && [0,6,7,8].includes(data.column.index)) data.cell.styles.halign = 'center';
@@ -306,7 +336,6 @@ function exportarPDF(tabla) {
     setTimeout(() => msg.fadeOut(2000), 3000);
 }
 
-let tabla;
 $(document).ready(() => {
     $("#ultima-actualizacion").text("Última actualización: " + new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' }));
     
@@ -317,7 +346,18 @@ $(document).ready(() => {
             const data = res.data.filter(r => r && Object.keys(r).length > 1);
             if (!data.length) { $("#errorMsg").text("⚠️ CSV vacío o formato incorrecto.").show(); $("#loading").fadeOut(300); return; }
             tabla = inicializarTabla(data);
-            $('#limpiarFiltro').click(() => { while($.fn.dataTable.ext.search.length) $.fn.dataTable.ext.search.pop(); tabla.draw(); });
+            
+            // 🎛️ Eventos de controles
+            $('#chkOcultarCumplidos').on('change', function() {
+                ocultarCumplidos = $(this).is(':checked');
+                aplicarFiltros();
+            });
+
+            $('#limpiarFiltroCategoria').click(() => { 
+                filtroActivo = 'todos'; 
+                aplicarFiltros(); 
+            });
+            
             $('#btnExportarPDF').click(() => exportarPDF(tabla));
         },
         error: err => {
