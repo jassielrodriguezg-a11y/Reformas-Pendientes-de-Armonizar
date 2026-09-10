@@ -265,7 +265,7 @@ function exportarPDF(tabla) {
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('landscape', 'mm', 'letter');
-    doc.setFontSize(16).setTextColor(44,62,80).text('Portal de Obligaciones de Armonización Legislativa', 14, 15);
+    doc.setFontSize(16).setTextColor(44,62,80).text('Obligaciones de Armonización Legislativa', 14, 15);
     doc.setFontSize(10).setTextColor(100).text('Reporte de Pendientes', 14, 22);
     doc.setFontSize(8);
     const hoy = new Date().toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric' });
