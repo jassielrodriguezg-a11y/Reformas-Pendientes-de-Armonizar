@@ -31,7 +31,6 @@
 
         .controls { margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
         
-        /* Estilo nuevo para el checkbox */
         .toggle-cumplidos { 
             display: flex; align-items: center; gap: 8px; cursor: pointer; 
             font-weight: 600; color: #2c3e50; background: #e8f4f8; padding: 8px 14px; 
@@ -88,7 +87,7 @@
         <thead>
             <tr>
                 <th>No</th><th>Ordenamiento</th><th>Materia</th><th>Publicación DOF</th><th>Plazo</th>
-                <th>Fecha Límite</th><th>Estado</th><th>Hecho</th><th>Iniciativa local</th>
+                <th>Fecha Límite</th><th>Estado</th><th>Iniciativa local</th><th>Hecho</th>
             </tr>
         </thead>
     </table>
@@ -97,9 +96,8 @@
 <script>
 const CSV_URL = 'https://raw.githubusercontent.com/jassielrodriguezg-a11y/Reformas-Pendientes-de-Armonizar/refs/heads/main/datos.csv';
 
-// 🧠 Estado global de filtros
 let tabla;
-let filtroActivo = 'todos'; // 'todos', 'vencido-con', 'vencido-sin', 'vigente-con', 'vigente-sin'
+let filtroActivo = 'todos';
 let ocultarCumplidos = true;
 
 function normalizarTexto(texto) {
@@ -172,12 +170,9 @@ function renderizarDashboard(stats) {
 }
 
 function aplicarFiltros() {
-    // 1. Limpiar filtros anteriores de DataTables
     while($.fn.dataTable.ext.search.length) $.fn.dataTable.ext.search.pop();
     
-    // 2. Insertar nueva regla de filtrado
     $.fn.dataTable.ext.search.push((settings, data, rowIndex) => {
-        // ✅ CORRECCIÓN: Acceder a los datos originales del CSV, no al array plano
         const rowData = settings.aoData[rowIndex]._aData;
         
         const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
@@ -185,10 +180,8 @@ function aplicarFiltros() {
         const ini = obtenerIniciativas(rowData["INICIATIVA LOCAL"]).existe;
         const esCumplido = h.includes("si");
 
-        // Regla A: Si el checkbox está activo, ocultar cumplidos
         if (ocultarCumplidos && esCumplido) return false;
 
-        // Regla B: Filtros de categorías (tarjetas)
         if (filtroActivo === 'vencido-con') return v === "VENCIDO" && ini;
         if (filtroActivo === 'vencido-sin') return v === "VENCIDO" && !ini;
         if (filtroActivo === 'vigente-con') return v !== "VENCIDO" && ini;
@@ -197,7 +190,6 @@ function aplicarFiltros() {
         return true;
     });
     
-    // 3. Redibujar la tabla
     if (tabla) tabla.draw();
 }
 
@@ -240,15 +232,6 @@ function inicializarTabla(datos) {
                 }
             },
             { 
-                data: "HECHO", 
-                render: (d, t, r) => {
-                    const h = normalizarTexto(d || "");
-                    if (h.includes("si")) return '✔';
-                    if (obtenerIniciativas(r["INICIATIVA LOCAL"]).existe) return '📋 En Estudio';
-                    return 'No';
-                }
-            },
-            { 
                 data: "INICIATIVA LOCAL", 
                 render: d => {
                     const { urls } = obtenerIniciativas(d);
@@ -256,13 +239,21 @@ function inicializarTabla(datos) {
                     if (urls.length === 1) return `<a href="${urls[0]}" target="_blank" class="ini-link">Ver</a>`;
                     return urls.map((url, i) => `<a href="${url}" target="_blank" class="ini-link">Ver ${i+1}</a>`).join('');
                 }
+            },
+            { 
+                data: "HECHO", 
+                render: (d, t, r) => {
+                    const h = normalizarTexto(d || "");
+                    if (h.includes("si")) return '✔';
+                    if (obtenerIniciativas(r["INICIATIVA LOCAL"]).existe) return '📋 En Estudio';
+                    return 'No';
+                }
             }
         ],
         language: { url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
         pageLength: 25, order: [[0, 'asc']],
         initComplete: () => {
             $("#loading").fadeOut(500);
-            // 🚀 Aplicar filtro de "Ocultar cumplidos" por defecto al cargar
             aplicarFiltros();
         }
     });
@@ -272,7 +263,6 @@ function inicializarTabla(datos) {
 function exportarPDF(tabla) {
     if (!tabla || tabla.rows().count() === 0) return alert('No hay datos cargados.');
     
-    // ✅ Filtrar solo los NO cumplidos para el reporte, sin importar lo que se vea en pantalla
     const filas = tabla.rows({ search: 'applied', filter: 'applied' }).data().filter(fila => {
         return !normalizarTexto(fila["HECHO"]).includes("si");
     });
@@ -296,7 +286,7 @@ function exportarPDF(tabla) {
         bodyRows.push([
             fila["No"], fila["ORDENAMIENTO"], fila["MATERIA REFORMA"], 
             fila["PUBLICACIÓN DOF"], fila["PLAZO PARA ARMONIZAR"], fila["FECHA LÍMITE"], 
-            estado, hechoTexto, iniTexto
+            estado, iniTexto, hechoTexto
         ]);
     });
 
@@ -310,13 +300,16 @@ function exportarPDF(tabla) {
 
     doc.autoTable({
         startY: 32,
-        head: [['No','Ordenamiento','Materia','Publicación DOF','Plazo','Fecha Límite','Estado','Hecho','Iniciativa local']],
+        head: [['No','Ordenamiento','Materia','Publicación DOF','Plazo','Fecha Límite','Estado','Iniciativa local','Hecho']],
         body: bodyRows, theme: 'grid',
         styles: { fontSize:7, cellPadding:2, lineColor:[200,200,200], lineWidth:0.2, valign:'middle' },
         headStyles: { fillColor:[52,73,94], textColor:255, fontStyle:'bold', fontSize:7.5, halign:'center' },
         columnStyles: { 
-            0:{cellWidth:10,halign:'center'}, 5:{cellWidth:25,halign:'center'}, 
-            6:{halign:'center',fontStyle:'bold',cellWidth:25}, 7:{cellWidth:20,halign:'center'}, 8:{cellWidth:25,halign:'center'} 
+            0:{cellWidth:10,halign:'center'}, 
+            5:{cellWidth:25,halign:'center'}, 
+            6:{halign:'center',fontStyle:'bold',cellWidth:25}, 
+            7:{cellWidth:25,halign:'center'}, 
+            8:{cellWidth:20,halign:'center'} 
         },
         didParseCell: data => {
             if (data.row.index !== undefined && data.column.index === 6) {
@@ -348,7 +341,6 @@ $(document).ready(() => {
             if (!data.length) { $("#errorMsg").text("⚠️ CSV vacío o formato incorrecto.").show(); $("#loading").fadeOut(300); return; }
             tabla = inicializarTabla(data);
             
-            // 🎛️ Eventos de controles
             $('#chkOcultarCumplidos').on('change', function() {
                 ocultarCumplidos = $(this).is(':checked');
                 aplicarFiltros();
