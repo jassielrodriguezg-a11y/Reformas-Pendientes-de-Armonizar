@@ -171,13 +171,15 @@ function renderizarDashboard(stats) {
     `);
 }
 
-// 🎯 Motor de filtrado unificado
 function aplicarFiltros() {
     // 1. Limpiar filtros anteriores de DataTables
     while($.fn.dataTable.ext.search.length) $.fn.dataTable.ext.search.pop();
     
     // 2. Insertar nueva regla de filtrado
-    $.fn.dataTable.ext.search.push((settings, rowData, rowIndex) => {
+    $.fn.dataTable.ext.search.push((settings, data, rowIndex) => {
+        // ✅ CORRECCIÓN: Acceder a los datos originales del CSV, no al array plano
+        const rowData = settings.aoData[rowIndex]._aData;
+        
         const v = calcularVencimiento(rowData["FECHA LÍMITE"]);
         const h = normalizarTexto(rowData["HECHO"]);
         const ini = obtenerIniciativas(rowData["INICIATIVA LOCAL"]).existe;
@@ -192,7 +194,6 @@ function aplicarFiltros() {
         if (filtroActivo === 'vigente-con') return v !== "VENCIDO" && ini;
         if (filtroActivo === 'vigente-sin') return v !== "VENCIDO" && !ini;
         
-        // Si es 'todos', pasa la Regla A y llega aquí -> true
         return true;
     });
     
